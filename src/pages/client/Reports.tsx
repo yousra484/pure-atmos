@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 interface Report {
   id: string;
-  commande_id: string;
+  demande_etude_id: string;
   langue: string;
   fichier_url: string;
   date_publication: string;
@@ -49,8 +49,8 @@ export default function Reports() {
 
       // Fetch user's orders
       const { data: orders } = await supabase
-        .from('commandes')
-        .select('id, titre')
+        .from('demandes_etudes')
+        .select('id, nom_entreprise')
         .eq('client_id', profile.id);
 
       if (!orders || orders.length === 0) {
@@ -62,14 +62,19 @@ export default function Reports() {
       const { data: reportsData } = await supabase
         .from('rapports')
         .select('*')
-        .in('commande_id', orders.map(o => o.id))
+        .in('demande_etude_id', orders.map(o => o.id))
         .order('date_publication', { ascending: false });
 
       // Combine reports with order titles
-      const reportsWithOrders = reportsData?.map(report => ({
-        ...report,
-        commande: orders.find(o => o.id === report.commande_id)
-      })) || [];
+      const reportsWithOrders = reportsData?.map(report => {
+        const matchingOrder = orders.find(o => o.id === report.demande_etude_id);
+        return {
+          ...report,
+          commande: matchingOrder ? {
+            titre: matchingOrder.nom_entreprise || 'Sans titre'
+          } : undefined
+        };
+      }) || [];
 
       setReports(reportsWithOrders);
     } catch (error) {

@@ -17,16 +17,11 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { translations } from '@/utils/translations';
+import { useAppContext } from '@/context/AppContext';
 
-interface ServicesProps {
-  language: string;
-  country: string;
-  onLanguageChange: (lang: string) => void;
-  onCountryChange: (country: string) => void;
-}
-
-export default function Services({ language, country, onLanguageChange, onCountryChange }: ServicesProps) {
+export default function Services() {
   const navigate = useNavigate();
+  const { language } = useAppContext();
   const t = translations[language as keyof typeof translations];
 
   const services = [
@@ -97,12 +92,7 @@ export default function Services({ language, country, onLanguageChange, onCountr
 
   return (
     <div className="min-h-screen bg-background" dir={language === 'ar' ? 'rtl' : 'ltr'}>
-      <Header 
-        language={language}
-        country={country}
-        onLanguageChange={onLanguageChange}
-        onCountryChange={onCountryChange}
-      />
+      <Header />
 
       <main className="py-20">
         {/* Hero Section */}
@@ -228,7 +218,7 @@ export default function Services({ language, country, onLanguageChange, onCountr
         </section>
       </main>
 
-      <Footer language={language} />
+      <Footer />
     </div>
   );
 }

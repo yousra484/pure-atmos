@@ -1,24 +1,26 @@
-import { useState } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Play, Target, Globe, BarChart3 } from 'lucide-react';
 import { translations } from '@/utils/translations';
+import { useAppContext } from '@/context/AppContext';
 
 const About = () => {
-  const [language, setLanguage] = useState('fr');
-  const [selectedCountry, setSelectedCountry] = useState('dz');
+  const { language, setLanguage, country, setCountry } = useAppContext();
   const t = translations[language as keyof typeof translations];
+  
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage as any);
+  };
+  
+  const handleCountryChange = (newCountry: string) => {
+    setCountry(newCountry as any);
+  };
 
   return (
     <div className="min-h-screen bg-background" dir={language === 'ar' ? 'rtl' : 'ltr'}>
-      <Header 
-        language={language}
-        country={selectedCountry}
-        onLanguageChange={setLanguage}
-        onCountryChange={setSelectedCountry}
-      />
+      <Header />
 
       <main className="pt-20">
         {/* Hero Section */}
@@ -26,10 +28,10 @@ const About = () => {
           <div className="container mx-auto px-4">
             <div className="text-center max-w-4xl mx-auto">
               <h1 className="text-4xl lg:text-5xl font-bold text-foreground mb-6">
-                À Propos de Pure Atmos
+                {t.aboutTitle}
               </h1>
               <p className="text-lg text-muted-foreground leading-relaxed mb-8">
-                Pure Atmos Solutions Services est une startup innovante spécialisée dans l'analyse scientifique de la pollution atmosphérique à travers l'Afrique. Notre mission est de fournir des données précises et des solutions durables pour améliorer la qualité de l'air et protéger la santé publique.
+                {t.aboutDescription}
               </p>
               
               {/* Video Presentation */}
@@ -49,7 +51,7 @@ const About = () => {
                   </div>
                   <img 
                     src="/images/video-thumbnail.jpg" 
-                    alt="Présentation Pure Atmos" 
+                    alt={t.videoAltText}
                     className="w-full h-full object-cover opacity-70"
                   />
                 </div>
@@ -66,9 +68,9 @@ const About = () => {
                 <div className="p-4 bg-primary/10 rounded-full w-fit mx-auto mb-6">
                   <Target className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold mb-4">Notre Mission</h3>
+                <h3 className="text-xl font-semibold mb-4">{t.ourMission}</h3>
                 <p className="text-muted-foreground leading-relaxed">
-                  Fournir des analyses scientifiques précises de la pollution atmosphérique pour protéger la santé publique et l'environnement.
+                  {t.missionDescription}
                 </p>
               </Card>
               
@@ -76,9 +78,9 @@ const About = () => {
                 <div className="p-4 bg-atmos-green/10 rounded-full w-fit mx-auto mb-6">
                   <Globe className="h-8 w-8 text-atmos-green" />
                 </div>
-                <h3 className="text-xl font-semibold mb-4">Notre Vision</h3>
+                <h3 className="text-xl font-semibold mb-4">{t.ourVision}</h3>
                 <p className="text-muted-foreground leading-relaxed">
-                  Devenir le leader de l'analyse environnementale en Afrique, contribuant à un avenir plus sain pour tous.
+                  {t.visionDescription}
                 </p>
               </Card>
               
@@ -86,9 +88,9 @@ const About = () => {
                 <div className="p-4 bg-atmos-blue/10 rounded-full w-fit mx-auto mb-6">
                   <BarChart3 className="h-8 w-8 text-atmos-blue" />
                 </div>
-                <h3 className="text-xl font-semibold mb-4">Notre Approche</h3>
+                <h3 className="text-xl font-semibold mb-4">{t.ourApproach}</h3>
                 <p className="text-muted-foreground leading-relaxed">
-                  Une méthodologie scientifique rigoureuse combinée à une présence locale pour des solutions adaptées.
+                  {t.approachDescription}
                 </p>
               </Card>
             </div>
@@ -144,7 +146,7 @@ const About = () => {
         </section>
       </main>
 
-      <Footer language={language} />
+      <Footer />
     </div>
   );
 };

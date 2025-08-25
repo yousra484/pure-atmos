@@ -8,12 +8,26 @@ export const translations = {
     contact: 'Contact',
     login: 'Connexion',
     
+    // User Menu
+    clientArea: 'Espace Client',
+    dashboard: 'Tableau de bord',
+    orderTracking: 'Suivi de commandes / demandes',
+    reportDownload: 'Téléchargement de rapports',
+    personalizedAdvice: 'Conseils personnalisés',
+    historyBilling: 'Historique et facturation',
+    logout: 'Déconnexion',
+    
     // Hero Section
     heroTitle: 'Solutions Scientifiques pour un Air Pur',
     heroSubtitle: 'Clean atmosphere for better future',
     heroDescription: 'Pure Atmos Solutions Services propose des analyses scientifiques de la pollution atmosphérique à travers l\'Afrique pour un avenir plus sain.',
     startStudy: 'Commencer une étude',
     contactExpert: 'Contacter un expert',
+    
+    // About Page
+    aboutTitle: 'À Propos de Pure Atmos',
+    aboutDescription: 'Pure Atmos Solutions Services est une startup innovante spécialisée dans l\'analyse scientifique de la pollution atmosphérique à travers l\'Afrique. Notre mission est de fournir des données précises et des solutions durables pour améliorer la qualité de l\'air et protéger la santé publique.',
+    videoAltText: 'Présentation Pure Atmos',
     
     // Access Buttons
     clientAccess: 'Accès Client',
@@ -26,7 +40,6 @@ export const translations = {
     fieldSampling: 'Prélèvement terrain',
     labAnalysis: 'Analyses en laboratoire',
     scientificReports: 'Rapports scientifiques',
-    personalizedAdvice: 'Conseils personnalisés',
     indoorAirDiagnostic: 'Diagnostic air intérieur',
     
     // Additional translations for components
@@ -55,7 +68,7 @@ export const translations = {
     newsletter: 'Newsletter',
     newsletterDesc: 'Restez informé de nos dernières analyses et recommandations environnementales',
     emailPlaceholder: 'Votre email',
-    copyright: '© 2024 Pure Atmos Solutions Services. Tous droits réservés.',
+    copyright: '© 2025 Pure Atmos Solutions Services. Tous droits réservés.',
     legalNotices: 'Mentions légales',
     privacyPolicy: 'Politique de confidentialité',
     terms: 'CGU',
@@ -198,6 +211,9 @@ export const translations = {
     recommendations: 'Recommandations',
     preventiveMeasures: 'Mesures Préventives',
     followUp: 'Suivi',
+    solutionsServices: 'Solutions Services',
+    phoneNumber: '+213 559 34 54 40',
+    address: 'Université de Tlemcen, Abou Bekr Belkaid\nDépartement de Biologie',
     homeAnalysis: 'Analyse Domicile',
     officeAnalysis: 'Analyse Bureau',
     schoolAnalysis: 'Analyse École',
@@ -261,6 +277,13 @@ export const translations = {
     about: 'About Us',
     contact: 'Contact',
     login: 'Login',
+    clientArea: 'Client Area',
+    dashboard: 'Dashboard',
+    orderTracking: 'Order tracking / requests',
+    reportDownload: 'Report download',
+    personalizedAdvice: 'Personalized advice',
+    historyBilling: 'History and billing',
+    logout: 'Logout',
     
     // Hero Section
     heroTitle: 'Scientific Solutions for Pure Air',
@@ -268,6 +291,11 @@ export const translations = {
     heroDescription: 'Pure Atmos Solutions Services provides scientific atmospheric pollution analysis across Africa for a healthier future.',
     startStudy: 'Start a Study',
     contactExpert: 'Contact an Expert',
+    
+    // About Page
+    aboutTitle: 'About Pure Atmos',
+    aboutDescription: 'Pure Atmos Solutions Services is an innovative startup specialized in scientific analysis of atmospheric pollution across Africa. Our mission is to provide accurate data and sustainable solutions to improve air quality and protect public health.',
+    videoAltText: 'Pure Atmos Presentation',
     
     // Access Buttons
     clientAccess: 'Client Access',
@@ -280,7 +308,6 @@ export const translations = {
     fieldSampling: 'Field sampling',
     labAnalysis: 'Laboratory analysis',
     scientificReports: 'Scientific reports',
-    personalizedAdvice: 'Personalized advice',
     indoorAirDiagnostic: 'Indoor air diagnostic',
     
     // Additional translations for components
@@ -309,7 +336,7 @@ export const translations = {
     newsletter: 'Newsletter',
     newsletterDesc: 'Stay informed about our latest environmental analysis and recommendations',
     emailPlaceholder: 'Your email',
-    copyright: '© 2024 Pure Atmos Solutions Services. All rights reserved.',
+    copyright: '© 2025 Pure Atmos Solutions Services. All rights reserved.',
     legalNotices: 'Legal notices',
     privacyPolicy: 'Privacy policy',
     terms: 'Terms of service',
@@ -515,6 +542,13 @@ export const translations = {
     about: 'من نحن',
     contact: 'اتصل بنا',
     login: 'تسجيل الدخول',
+    clientArea: 'مساحة العميل',
+    dashboard: 'لوحة القيادة',
+    orderTracking: 'تتبع الطلبات / الطلبات',
+    reportDownload: 'تحميل التقارير',
+    personalizedAdvice: 'نصائح مخصصة',
+    historyBilling: 'السواق والفوترة',
+    logout: 'تسجيل خروج',
     
     // Hero Section
     heroTitle: 'حلول علمية لهواء نقي',
@@ -534,7 +568,7 @@ export const translations = {
     fieldSampling: 'أخذ العينات الميدانية',
     labAnalysis: 'التحليل المختبري',
     scientificReports: 'التقارير العلمية',
-    personalizedAdvice: 'نصائح مخصصة',
+
     indoorAirDiagnostic: 'تشخيص الهواء الداخلي',
     
     // Additional translations for components
@@ -563,10 +597,13 @@ export const translations = {
     newsletter: 'النشرة الإخبارية',
     newsletterDesc: 'ابق على اطلاع بأحدث تحليلاتنا وتوصياتنا البيئية',
     emailPlaceholder: 'بريدك الإلكتروني',
-    copyright: '© 2024 Pure Atmos Solutions Services. جميع الحقوق محفوظة.',
+    copyright: ' 2024 Pure Atmos Solutions Services. جميع الحقوق محفوظة.',
     legalNotices: 'الإشعارات القانونية',
     privacyPolicy: 'سياسة الخصوصية',
     terms: 'شروط الخدمة',
+    solutionsServices: 'خدمات الحلول',
+    phoneNumber: '+213 559 34 54 40',
+    address: 'جامعة تلمسان، أبو بكر بلقايد\nقسم علم الأحياء',
     
     // Countries
     algeria: 'الجزائر',
@@ -607,6 +644,9 @@ export const translations = {
     interactiveMapDesc: 'خريطة تفاعلية قيد التطوير',
 
     // About page content
+    aboutTitle: 'حول Pure Atmos',
+    aboutDescription: 'شركة Pure Atmos Solutions Services هي شركة ناشئة مبتكرة متخصصة في التحليل العلمي لتلوث الهواء في جميع أنحاء أفريقيا. مهمتنا هي توفير بيانات دقيقة وحلول مستدامة لتحسين جودة الهواء وحماية الصحة العامة.',
+    videoAltText: 'عرض تقديمي عن Pure Atmos',
     aboutPureAtmosContent: 'Pure Atmos Solutions Services هي شركة ناشئة مبتكرة متخصصة في التحليل العلمي لتلوث الغلاف الجوي عبر أفريقيا. مهمتنا هي توفير بيانات دقيقة وحلول مستدامة لتحسين جودة الهواء وحماية الصحة العامة.',
     ourMissionContent: 'تقديم تحليلات علمية دقيقة لتلوث الغلاف الجوي لحماية الصحة العامة والبيئة.',
     ourVisionContent: 'أن نصبح الرائدين في التحليل البيئي في أفريقيا، مساهمين في مستقبل أكثر صحة للجميع.',
@@ -705,7 +745,7 @@ export const translations = {
     multilingualReport: 'تقرير متعدد اللغات',
     recommendations: 'التوصيات',
     preventiveMeasures: 'التدابير الوقائية',
-    followUp: 'المتابعة',
+    followUp: 'متابعة',
     homeAnalysis: 'تحليل المنزل',
     officeAnalysis: 'تحليل المكتب',
     schoolAnalysis: 'تحليل المدرسة',

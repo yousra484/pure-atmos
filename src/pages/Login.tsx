@@ -6,35 +6,72 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { translations } from '@/utils/translations';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { useAppContext } from '@/context/AppContext';
 
-interface LoginProps {
-  language: string;
-  country: string;
-  onLanguageChange: (lang: string) => void;
-  onCountryChange: (country: string) => void;
-}
-
-const Login = ({ language }: LoginProps) => {
+const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [accountType, setAccountType] = useState('client');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { signIn } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
+  const { language, setLanguage, country, setCountry } = useAppContext();
   const t = translations[language as keyof typeof translations] || translations.fr;
+  
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage as any);
+  };
+  
+  const handleCountryChange = (newCountry: string) => {
+    setCountry(newCountry as any);
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-
     setIsLoading(true);
+
     try {
-      await signIn(email, password);
-      navigate('/');
-    } catch (error) {
-      console.error('Login error:', error);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      // Get user profile to determine role
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('type_compte')
+        .eq('user_id', data.user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        // Default to client if profile not found
+        navigate('/client/dashboard');
+        return;
+      }
+
+      toast({
+        title: "Connexion réussie",
+        description: "Vous êtes maintenant connecté.",
+      });
+
+      // Redirect based on user role
+      if (profile && profile.type_compte === 'intervention') {
+        navigate('/intervenant/dashboard');
+      } else {
+        navigate('/client/dashboard');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erreur de connexion",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -63,7 +100,7 @@ const Login = ({ language }: LoginProps) => {
             </TabsList>
             
             <TabsContent value="client" className="space-y-4">
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="client-email">{t.email}</Label>
                   <Input
@@ -93,7 +130,7 @@ const Login = ({ language }: LoginProps) => {
             </TabsContent>
             
             <TabsContent value="intervention" className="space-y-4">
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="intervention-email">{t.email}</Label>
                   <Input

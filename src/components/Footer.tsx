@@ -12,12 +12,10 @@ import {
   Send
 } from 'lucide-react';
 import { translations } from '@/utils/translations';
+import { useAppContext } from '@/context/AppContext';
 
-interface FooterProps {
-  language: string;
-}
-
-export function Footer({ language }: FooterProps) {
+export function Footer() {
+  const { language } = useAppContext();
   const t = translations[language as keyof typeof translations];
 
   return (
@@ -64,27 +62,27 @@ export function Footer({ language }: FooterProps) {
             <h4 className="text-lg font-semibold mb-6">{t.quickLinks}</h4>
             <ul className="space-y-3">
               <li>
-                <a href="#home" className="text-gray-300 hover:text-atmos-green transition-colors">
+                <a href="/" className="text-gray-300 hover:text-atmos-green transition-colors">
                   {t.home}
                 </a>
               </li>
               <li>
-                <a href="#services" className="text-gray-300 hover:text-atmos-green transition-colors">
+                <a href="/services" className="text-gray-300 hover:text-atmos-green transition-colors">
                   {t.services}
                 </a>
               </li>
               <li>
-                <a href="#countries" className="text-gray-300 hover:text-atmos-green transition-colors">
+                <a href="/countries" className="text-gray-300 hover:text-atmos-green transition-colors">
                   {t.countries}
                 </a>
               </li>
               <li>
-                <a href="#about" className="text-gray-300 hover:text-atmos-green transition-colors">
+                <a href="/about" className="text-gray-300 hover:text-atmos-green transition-colors">
                   {t.about}
                 </a>
               </li>
               <li>
-                <a href="#contact" className="text-gray-300 hover:text-atmos-green transition-colors">
+                <a href="/contact" className="text-gray-300 hover:text-atmos-green transition-colors">
                   {t.contact}
                 </a>
               </li>

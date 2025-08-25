@@ -8,15 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { translations } from '@/utils/translations';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppContext } from '@/context/AppContext';
 
-interface SignUpProps {
-  language: string;
-  country: string;
-  onLanguageChange: (lang: string) => void;
-  onCountryChange: (country: string) => void;
-}
-
-const SignUp = ({ language, country }: SignUpProps) => {
+const SignUp = () => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -34,7 +28,16 @@ const SignUp = ({ language, country }: SignUpProps) => {
   
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const { language, setLanguage, country, setCountry } = useAppContext();
   const t = translations[language as keyof typeof translations] || translations.fr;
+  
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage as any);
+  };
+  
+  const handleCountryChange = (newCountry: string) => {
+    setCountry(newCountry as any);
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({

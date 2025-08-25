@@ -1,24 +1,56 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LanguageSelector } from './LanguageSelector';
 import { CountrySelector } from './CountrySelector';
-import { Menu, X, User, Users, Settings, LogOut, BarChart3, ShoppingCart, Download, Heart, Clock } from 'lucide-react';
+import { Menu, X, User, Users, Settings, LogOut, BarChart3, ShoppingCart, Download, Heart, Clock, MapPin, FileText, MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { translations } from '@/utils/translations';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppContext } from '@/context/AppContext';
+import { supabase } from '@/integrations/supabase/client';
 
-interface HeaderProps {
-  language: string;
-  country: string;
-  onLanguageChange: (lang: string) => void;
-  onCountryChange: (country: string) => void;
-}
-
-export function Header({ language, country, onLanguageChange, onCountryChange }: HeaderProps) {
+export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const { user, logout } = useAuth();
+  const { language, country, setLanguage, setCountry } = useAppContext();
   const t = translations[language as keyof typeof translations];
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    try {
+      if (!user?.id) return;
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('type_compte')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+  
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage as any);
+  };
+  
+  const handleCountryChange = (newCountry: string) => {
+    setCountry(newCountry as any);
+  };
 
   return (
     <header className="bg-card/95 backdrop-blur-sm border-b sticky top-0 z-50">
@@ -62,12 +94,12 @@ export function Header({ language, country, onLanguageChange, onCountryChange }:
             <div className="hidden sm:flex items-center space-x-2">
               <CountrySelector 
                 currentCountry={country} 
-                onCountryChange={onCountryChange}
+                onCountryChange={handleCountryChange}
                 translations={t}
               />
               <LanguageSelector 
                 currentLanguage={language} 
-                onLanguageChange={onLanguageChange}
+                onLanguageChange={handleLanguageChange}
               />
             </div>
 
@@ -78,33 +110,118 @@ export function Header({ language, country, onLanguageChange, onCountryChange }:
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="gap-2">
                       <User className="h-4 w-4" />
-                      Espace Client
+                      {userProfile?.type_compte === 'intervention' ? 'Espace Intervenant' : t.clientArea}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem>
-                      <BarChart3 className="mr-2 h-4 w-4" />
-                      Tableau de bord
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <ShoppingCart className="mr-2 h-4 w-4" />
-                      Suivi de commandes / demandes
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Download className="mr-2 h-4 w-4" />
-                      Téléchargement de rapports
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Heart className="mr-2 h-4 w-4" />
-                      Conseils personnalisés
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Clock className="mr-2 h-4 w-4" />
-                      Historique et facturation
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={logout}>
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Déconnexion
+                  <DropdownMenuContent align="end" className="w-56 p-1">
+                    {userProfile?.type_compte === 'intervention' ? (
+                      <>
+                        <DropdownMenuItem asChild className="p-0">
+                          <Link to="/intervenant/dashboard" className="w-full px-2 py-1.5 flex items-center">
+                            <BarChart3 className="mr-2 h-4 w-4" />
+                            Tableau de bord
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="p-0">
+                          <Link to="/intervenant/missions" className="w-full px-2 py-1.5 flex items-center">
+                            <MapPin className="mr-2 h-4 w-4" />
+                            Missions Terrain
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="p-0">
+                          <Link to="/intervenant/reports" className="w-full px-2 py-1.5 flex items-center">
+                            <FileText className="mr-2 h-4 w-4" />
+                            Rapports
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="p-0">
+                          <Link to="/intervenant/messages" className="w-full px-2 py-1.5 flex items-center">
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            Messagerie
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                      <>
+                        <DropdownMenuItem asChild className="p-0">
+                          <Link to="/client/dashboard" className="w-full px-2 py-1.5 flex items-center">
+                            <BarChart3 className="mr-2 h-4 w-4" />
+                            Tableau de bord
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="p-0">
+                          <Link to="/client/orders" className="w-full px-2 py-1.5 flex items-center">
+                            <ShoppingCart className="mr-2 h-4 w-4" />
+                            {t.orderTracking}
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="p-0">
+                          <Link to="/client/reports" className="w-full px-2 py-1.5 flex items-center">
+                            <Download className="mr-2 h-4 w-4" />
+                            {t.reportDownload}
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="p-0">
+                          <Link to="/client/advice" className="w-full px-2 py-1.5 flex items-center">
+                            <Heart className="mr-2 h-4 w-4" />
+                            {t.personalizedAdvice}
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild className="p-0">
+                          <Link to="/client/history" className="w-full px-2 py-1.5 flex items-center">
+                            <Clock className="mr-2 h-4 w-4" />
+                            {t.historyBilling}
+                          </Link>
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    <DropdownMenuItem asChild className="p-0">
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          const logoutButton = e.currentTarget;
+                          const originalContent = logoutButton.innerHTML;
+                          
+                          // Fonction pour réinitialiser le bouton
+                          const resetButton = () => {
+                            if (logoutButton) {
+                              logoutButton.disabled = false;
+                              logoutButton.innerHTML = originalContent;
+                            }
+                          };
+                          
+                          try {
+                            // Afficher un indicateur de chargement
+                            logoutButton.disabled = true;
+                            logoutButton.innerHTML = 'Déconnexion en cours...';
+                            
+                            // Appeler la fonction de déconnexion
+                            try {
+                              await logout();
+                              // Si on arrive ici, la déconnexion a réussi
+                              // Rediriger vers la page d'accueil après une déconnexion réussie
+                              window.location.href = '/';
+                              return; // On sort de la fonction
+                            } catch (error) {
+                              console.error('Erreur lors de la déconnexion (interne):', error);
+                              throw error; // Relancer l'erreur pour le bloc catch externe
+                            }
+                          } catch (error) {
+                            console.error('Erreur lors de la déconnexion (externe):', error);
+                            // Réactiver le bouton en cas d'erreur
+                            resetButton();
+                            
+                            // Afficher un message d'erreur à l'utilisateur
+                            alert('Une erreur est survenue lors de la déconnexion. Veuillez réessayer.');
+                          }
+                        }}
+                        className="w-full text-left px-2 py-1.5 text-destructive hover:bg-destructive/10 flex items-center"
+                      >
+                        <>
+                          <LogOut className="mr-2 h-4 w-4" />
+                          Déconnexion
+                        </>
+                      </button>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -154,39 +271,93 @@ export function Header({ language, country, onLanguageChange, onCountryChange }:
               <div className="flex items-center space-x-2 pt-2">
                 <CountrySelector 
                   currentCountry={country} 
-                  onCountryChange={onCountryChange}
+                  onCountryChange={handleCountryChange}
                   translations={t}
                 />
                 <LanguageSelector 
                   currentLanguage={language} 
-                  onLanguageChange={onLanguageChange}
+                  onLanguageChange={handleLanguageChange}
                 />
               </div>
               
               <div className="flex flex-col space-y-2 pt-2">
                 {user ? (
                   <>
-                    <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
-                      <BarChart3 className="h-4 w-4" />
-                      Tableau de bord
-                    </Button>
-                    <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
-                      <ShoppingCart className="h-4 w-4" />
-                      Suivi de commandes
-                    </Button>
-                    <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
-                      <Download className="h-4 w-4" />
-                      Rapports
-                    </Button>
-                    <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
-                      <Heart className="h-4 w-4" />
-                      Conseils
-                    </Button>
-                    <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
-                      <Clock className="h-4 w-4" />
-                      Historique
-                    </Button>
-                    <Button variant="outline" size="sm" className="gap-2 justify-start w-full" onClick={logout}>
+                    {userProfile?.type_compte === 'intervention' ? (
+                      <>
+                        <Link to="/intervenant/dashboard" className="w-full">
+                          <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
+                            <BarChart3 className="h-4 w-4" />
+                            Tableau de bord
+                          </Button>
+                        </Link>
+                        <Link to="/intervenant/missions" className="w-full">
+                          <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
+                            <MapPin className="h-4 w-4" />
+                            Missions Terrain
+                          </Button>
+                        </Link>
+                        <Link to="/intervenant/reports" className="w-full">
+                          <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
+                            <FileText className="h-4 w-4" />
+                            Rapports
+                          </Button>
+                        </Link>
+                        <Link to="/intervenant/messages" className="w-full">
+                          <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
+                            <MessageSquare className="h-4 w-4" />
+                            Messagerie
+                          </Button>
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <Link to="/client/dashboard" className="w-full">
+                          <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
+                            <BarChart3 className="h-4 w-4" />
+                            Tableau de bord
+                          </Button>
+                        </Link>
+                        <Link to="/client/orders" className="w-full">
+                          <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
+                            <ShoppingCart className="h-4 w-4" />
+                            Suivi de commandes
+                          </Button>
+                        </Link>
+                        <Link to="/client/reports" className="w-full">
+                          <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
+                            <Download className="h-4 w-4" />
+                            Rapports
+                          </Button>
+                        </Link>
+                        <Link to="/client/advice" className="w-full">
+                          <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
+                            <Heart className="h-4 w-4" />
+                            Conseils
+                          </Button>
+                        </Link>
+                        <Link to="/client/history" className="w-full">
+                          <Button variant="outline" size="sm" className="gap-2 justify-start w-full">
+                            <Clock className="h-4 w-4" />
+                            Historique
+                          </Button>
+                        </Link>
+                      </>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-2 justify-start w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        try {
+                          await logout();
+                          window.location.href = '/';
+                        } catch (error) {
+                          console.error('Erreur lors de la déconnexion:', error);
+                        }
+                      }}
+                    >
                       <LogOut className="h-4 w-4" />
                       Déconnexion
                     </Button>

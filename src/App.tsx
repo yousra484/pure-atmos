@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AppProvider } from "@/context/AppContext";
 import Index from "./pages/Index";
 import Services from "./pages/Services";
 import Countries from "./pages/Countries";
@@ -19,39 +20,54 @@ import Orders from "./pages/client/Orders";
 import Reports from "./pages/client/Reports";
 import Advice from "./pages/client/Advice";
 import History from "./pages/client/History";
+import IntervenantLayout from "./components/IntervenantLayout";
+import IntervenantDashboard from "./pages/intervenant/Dashboard";
+import IntervenantMissions from "./pages/intervenant/Missions";
+import IntervenantReports from "./pages/intervenant/Reports";
+import IntervenantMessages from "./pages/intervenant/Messages";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/services" element={<Services language="fr" country="dz" onLanguageChange={() => {}} onCountryChange={() => {}} />} />
-          <Route path="/countries" element={<Countries language="fr" country="dz" onLanguageChange={() => {}} onCountryChange={() => {}} />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/start-study" element={<StartStudy />} />
-          <Route path="/contact-expert" element={<ContactExpert />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/login" element={<Login language="fr" country="dz" onLanguageChange={() => {}} onCountryChange={() => {}} />} />
-          <Route path="/signup" element={<SignUp language="fr" country="dz" onLanguageChange={() => {}} onCountryChange={() => {}} />} />
-          
-          {/* Client Space Routes */}
-          <Route path="/client" element={<ClientLayout />}>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="orders" element={<Orders />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="advice" element={<Advice />} />
-            <Route path="history" element={<History />} />
-          </Route>
-          
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AppProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/services" element={<Services />} />
+            <Route path="/countries" element={<Countries />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/start-study" element={<StartStudy />} />
+            <Route path="/contact-expert" element={<ContactExpert />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<SignUp />} />
+            
+            {/* Client Space Routes */}
+            <Route path="/client" element={<ClientLayout />}>
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="orders" element={<Orders />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="advice" element={<Advice />} />
+              <Route path="history" element={<History />} />
+            </Route>
+            
+            {/* Intervenant Space Routes */}
+            <Route path="/intervenant" element={<IntervenantLayout />}>
+              <Route path="dashboard" element={<IntervenantDashboard />} />
+              <Route path="missions" element={<IntervenantMissions />} />
+              <Route path="reports" element={<IntervenantReports />} />
+              <Route path="messages" element={<IntervenantMessages />} />
+            </Route>
+            
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+        <Toaster />
+        <Sonner />
+      </AppProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

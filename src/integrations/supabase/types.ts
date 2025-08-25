@@ -142,21 +142,21 @@ export type Database = {
       }
       factures: {
         Row: {
-          commande_id: string | null
+          demande_etude_id: string | null
           date_emission: string | null
           id: string
           montant: number | null
           statut: string | null
         }
         Insert: {
-          commande_id?: string | null
+          demande_etude_id?: string | null
           date_emission?: string | null
           id?: string
           montant?: number | null
           statut?: string | null
         }
         Update: {
-          commande_id?: string | null
+          demande_etude_id?: string | null
           date_emission?: string | null
           id?: string
           montant?: number | null
@@ -164,45 +164,63 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "factures_commande_id_fkey"
-            columns: ["commande_id"]
+            foreignKeyName: "factures_demande_etude_id_fkey"
+            columns: ["demande_etude_id"]
             isOneToOne: false
-            referencedRelation: "commandes"
+            referencedRelation: "demandes_etudes"
             referencedColumns: ["id"]
           },
         ]
       }
       missions: {
         Row: {
-          commande_id: string | null
+          demande_etude_id: string | null
           date_debut: string | null
           date_fin: string | null
           id: string
           intervenant_id: string | null
           statut: string | null
+          lieu_intervention: string | null
+          description: string | null
+          latitude: number | null
+          longitude: number | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          commande_id?: string | null
+          demande_etude_id?: string | null
           date_debut?: string | null
           date_fin?: string | null
           id?: string
           intervenant_id?: string | null
           statut?: string | null
+          lieu_intervention?: string | null
+          description?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          commande_id?: string | null
+          demande_etude_id?: string | null
           date_debut?: string | null
           date_fin?: string | null
           id?: string
           intervenant_id?: string | null
           statut?: string | null
+          lieu_intervention?: string | null
+          description?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "missions_commande_id_fkey"
-            columns: ["commande_id"]
+            foreignKeyName: "missions_demande_etude_id_fkey"
+            columns: ["demande_etude_id"]
             isOneToOne: false
-            referencedRelation: "commandes"
+            referencedRelation: "demandes_etudes"
             referencedColumns: ["id"]
           },
         ]
@@ -257,32 +275,60 @@ export type Database = {
       }
       rapports: {
         Row: {
-          commande_id: string | null
+          demande_etude_id: string | null
           date_publication: string | null
           fichier_url: string | null
           id: string
           langue: string | null
+          mission_id: string | null
+          titre: string | null
+          contenu: string | null
+          type_rapport: string | null
+          statut: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          commande_id?: string | null
+          demande_etude_id?: string | null
           date_publication?: string | null
           fichier_url?: string | null
           id?: string
           langue?: string | null
+          mission_id?: string | null
+          titre?: string | null
+          contenu?: string | null
+          type_rapport?: string | null
+          statut?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          commande_id?: string | null
+          demande_etude_id?: string | null
           date_publication?: string | null
           fichier_url?: string | null
           id?: string
           langue?: string | null
+          mission_id?: string | null
+          titre?: string | null
+          contenu?: string | null
+          type_rapport?: string | null
+          statut?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "rapports_commande_id_fkey"
-            columns: ["commande_id"]
+            foreignKeyName: "rapports_demande_etude_id_fkey"
+            columns: ["demande_etude_id"]
             isOneToOne: false
-            referencedRelation: "commandes"
+            referencedRelation: "demandes_etudes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rapports_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
             referencedColumns: ["id"]
           },
         ]

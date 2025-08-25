@@ -12,14 +12,22 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft, Send } from 'lucide-react';
+import { useAppContext } from '@/context/AppContext';
 
 const StartStudy = () => {
-  const [language] = useState('fr');
-  const [selectedCountry] = useState('dz');
+  const { language, setLanguage, country, setCountry } = useAppContext();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage as any);
+  };
+  
+  const handleCountryChange = (newCountry: string) => {
+    setCountry(newCountry as any);
+  };
 
   const [formData, setFormData] = useState({
     nom_entreprise: '',
@@ -54,21 +62,39 @@ const StartStudy = () => {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase
+      // First, get the user's profile ID
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        throw new Error('Impossible de récupérer le profil utilisateur');
+      }
+
+      // Insert the study request with the correct profile ID
+      const { data, error } = await supabase
         .from('demandes_etudes')
         .insert({
           ...formData,
-          client_id: user.id
-        });
+          client_id: profile.id,
+          statut: 'en_attente'
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erreur détaillée:', error);
+        throw error;
+      }
 
       toast({
         title: "Demande soumise avec succès",
         description: "Nous examinerons votre demande et vous contacterons bientôt.",
       });
 
-      navigate('/client/orders');
+      navigate('/client/dashboard');
     } catch (error) {
       console.error('Error submitting study request:', error);
       toast({
@@ -82,13 +108,8 @@ const StartStudy = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header 
-        language={language}
-        country={selectedCountry}
-        onLanguageChange={() => {}}
-        onCountryChange={() => {}}
-      />
+    <div className="min-h-screen bg-background" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+      <Header />
 
       <main className="py-8">
         <div className="container mx-auto px-4 max-w-4xl">
@@ -287,7 +308,7 @@ const StartStudy = () => {
         </div>
       </main>
 
-      <Footer language={language} />
+      <Footer />
     </div>
   );
 };

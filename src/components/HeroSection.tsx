@@ -2,12 +2,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowRight, Play, Leaf, Wind, BarChart3 } from 'lucide-react';
 import { translations } from '@/utils/translations';
+import { useAppContext } from '@/context/AppContext';
 
-interface HeroSectionProps {
-  language: string;
-}
-
-export function HeroSection({ language }: HeroSectionProps) {
+export function HeroSection() {
+  const { language } = useAppContext();
   const t = translations[language as keyof typeof translations];
 
   return (
@@ -23,7 +21,7 @@ export function HeroSection({ language }: HeroSectionProps) {
           <div className="text-center lg:text-left">
             <div className="inline-flex items-center gap-2 bg-accent/10 text-accent-foreground px-4 py-2 rounded-full text-sm font-medium mb-6">
               <Leaf className="h-4 w-4" />
-              Clean atmosphere for better future
+              {t.heroSubtitle}
             </div>
             
             <h1 className="text-4xl lg:text-6xl font-bold text-foreground mb-6 leading-tight">

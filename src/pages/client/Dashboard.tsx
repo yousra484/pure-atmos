@@ -5,6 +5,19 @@ import { Package, FileText, Clock, DollarSign, User, Calendar } from "lucide-rea
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
+// Interface pour les données de demande d'étude
+interface DemandeEtude {
+  id: string;
+  type_etude: string;
+  description?: string;
+  delai_souhaite: string;
+  budget_estime: string | number;
+  statut: string;
+  created_at: string;
+  updated_at: string;
+  client_id: string;
+}
+
 interface DashboardStats {
   totalOrders: number;
   activeOrders: number;
@@ -42,88 +55,224 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      fetchDashboardData();
-    }
+    let isMounted = true;
+    let abortController: AbortController | null = new AbortController();
+
+    const loadData = async () => {
+      if (!user) {
+        if (isMounted) {
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        if (isMounted) {
+          setLoading(true);
+        }
+
+        // Vérifier si la requête a été annulée
+        if (abortController?.signal.aborted) {
+          return;
+        }
+
+        await fetchDashboardData();
+      } catch (error) {
+        console.error('Erreur lors du chargement des données:', error);
+        // Ne pas mettre à jour l'état si le composant est démonté
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    // Nettoyage lors du démontage du composant
+    return () => {
+      isMounted = false;
+      abortController?.abort();
+      abortController = null;
+    };
   }, [user]);
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch user profile with nom and prenom
-      const { data: profile } = await supabase
+      if (!user?.id) {
+        console.error('Aucun utilisateur connecté');
+        return;
+      }
+      
+      // Récupération du profil utilisateur
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id, nom, prenom')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .single();
 
-      if (!profile) return;
+      if (profileError || !profile) {
+        console.error('Erreur lors de la récupération du profil:', profileError?.message);
+        return;
+      }
 
       setUserProfile({ nom: profile.nom, prenom: profile.prenom });
-
-      // Fetch demandes d'études to calculate total days
-      const { data: demandes } = await supabase
+      
+      // Récupération des demandes d'études du client
+      const { data: demandes, error: demandesError } = await supabase
         .from('demandes_etudes')
-        .select('delai_souhaite')
-        .eq('client_id', profile.id);
-
-      // Calculate total days from demandes
-      const totalDays = demandes?.reduce((acc, demande) => {
-        const delai = demande.delai_souhaite;
-        if (delai?.includes('jours')) {
-          const days = parseInt(delai.match(/\d+/)?.[0] || '0');
-          return acc + days;
-        } else if (delai?.includes('semaines')) {
-          const weeks = parseInt(delai.match(/\d+/)?.[0] || '0');
-          return acc + (weeks * 7);
-        } else if (delai?.includes('mois')) {
-          const months = parseInt(delai.match(/\d+/)?.[0] || '0');
-          return acc + (months * 30);
+        .select('*')
+        .eq('client_id', profile.id)
+        .order('created_at', { ascending: false });
+      
+      if (demandesError) {
+        console.error('Erreur lors de la récupération des demandes:', demandesError);
+        return;
+      }
+      
+      const typedDemandes = (demandes || []) as DemandeEtude[];
+      
+      // Calcul des statistiques
+      let totalBudget = 0;
+      let totalDays = 0;
+      let activeOrdersCount = 0;
+      let completedOrdersCount = 0;
+      let pendingInvoicesCount = 0;
+      
+      typedDemandes.forEach(demande => {
+        // Calcul du budget total
+        if (demande.budget_estime) {
+          let budget = 0;
+          const budgetStr = String(demande.budget_estime);
+          
+          // Handle budget ranges from the form
+          switch (budgetStr) {
+            case 'moins_10k':
+              budget = 5000; // Average of range
+              break;
+            case '10k_50k':
+              budget = 30000; // Average of range
+              break;
+            case '50k_100k':
+              budget = 75000; // Average of range
+              break;
+            case '100k_500k':
+              budget = 300000; // Average of range
+              break;
+            case 'plus_500k':
+              budget = 750000; // Estimate for above 500k
+              break;
+            case 'a_discuter':
+              budget = 0; // No budget estimate
+              break;
+            default:
+              // Try to parse as numeric value
+              const numericBudget = parseFloat(budgetStr.replace(/[^0-9.,]/g, '').replace(',', '.'));
+              if (!isNaN(numericBudget)) {
+                budget = numericBudget;
+              }
+              break;
+          }
+          
+          totalBudget += budget;
         }
-        return acc;
-      }, 0) || 0;
-
-      // Fetch orders statistics
-      const { data: orders } = await supabase
-        .from('commandes')
-        .select('*')
-        .eq('client_id', profile.id);
-
-      // Fetch reports count
-      const { data: reports } = await supabase
-        .from('rapports')
-        .select('id')
-        .in('commande_id', orders?.map(o => o.id) || []);
-
-      // Fetch all invoices for total amount and history
-      const { data: allInvoices } = await supabase
-        .from('factures')
-        .select('*')
-        .in('commande_id', orders?.map(o => o.id) || []);
-
-      // Calculate total amount
-      const totalAmount = allInvoices?.reduce((acc, invoice) => {
-        return acc + (parseFloat(invoice.montant?.toString() || '0') || 0);
-      }, 0) || 0;
-
-      // Pending invoices count
-      const pendingInvoicesCount = allInvoices?.filter(inv => inv.statut === 'pending').length || 0;
-
-      setStats({
-        totalOrders: orders?.length || 0,
-        activeOrders: orders?.filter(o => o.statut === 'en_cours').length || 0,
-        completedReports: reports?.length || 0,
-        pendingInvoices: pendingInvoicesCount,
-        totalAmount,
-        totalDays,
+        
+        // Calcul des jours estimés
+        if (demande.delai_souhaite) {
+          let jours = 0;
+          const delaiStr = String(demande.delai_souhaite);
+          
+          // Handle specific form values
+          switch (delaiStr) {
+            case 'urgent':
+              jours = 10; // 1-2 weeks average
+              break;
+            case '1_mois':
+              jours = 30;
+              break;
+            case '3_mois':
+              jours = 90;
+              break;
+            case '6_mois':
+              jours = 180;
+              break;
+            case 'flexible':
+              jours = 60; // Default estimate for flexible
+              break;
+            default:
+              // Try to parse text descriptions
+              const delai = delaiStr.toLowerCase();
+              if (delai.includes('jour')) {
+                jours = parseInt(delai.replace(/\D/g, '')) || 0;
+              } else if (delai.includes('semaine')) {
+                const semaines = parseInt(delai.replace(/\D/g, '')) || 0;
+                jours = semaines * 7;
+              } else if (delai.includes('mois')) {
+                const mois = parseInt(delai.replace(/\D/g, '')) || 0;
+                jours = mois * 30;
+              } else {
+                // Try to parse directly as number of days
+                jours = parseInt(delai) || 0;
+              }
+              break;
+          }
+          
+          totalDays += jours;
+        }
+        
+        // Comptage des statuts
+        const statut = demande.statut?.toLowerCase() || '';
+        if (statut === 'en_cours' || statut === 'en cours' || statut === 'accepté' || statut === 'accepte') {
+          activeOrdersCount++;
+        } else if (statut === 'terminé' || statut === 'termine' || statut === 'livré' || statut === 'livre') {
+          completedOrdersCount++;
+        } else if (statut === 'en_attente' || statut === 'en attente' || statut === 'nouveau') {
+          pendingInvoicesCount++;
+        }
       });
 
-      // Set recent orders (last 5)
-      setRecentOrders(orders?.slice(-5).reverse() || []);
-      
-      // Set invoice history (last 10)
-      setInvoiceHistory(allInvoices?.slice(-10).reverse() || []);
+      // Mise à jour des statistiques
+      setStats({
+        totalOrders: typedDemandes.length,
+        activeOrders: activeOrdersCount,
+        completedReports: completedOrdersCount,
+        pendingInvoices: pendingInvoicesCount,
+        totalAmount: Math.round(totalBudget * 100) / 100,
+        totalDays: totalDays
+      });
+
+      // Mise à jour des commandes récentes (dernières 5)
+      const formattedOrders = typedDemandes
+        .slice(0, 5)
+        .map(demande => ({
+          id: demande.id,
+          titre: demande.type_etude || 'Étude environnementale',
+          date_creation: demande.created_at,
+          statut: demande.statut || 'En attente',
+          montant: parseFloat(String(demande.budget_estime || '0').replace(/[^0-9.,]/g, '').replace(',', '.')) || 0
+        }));
+
+      setRecentOrders(formattedOrders);
+
+      // Mise à jour de l'historique des factures (demandes terminées)
+      const completedDemandes = typedDemandes.filter(d => {
+        const statut = d.statut?.toLowerCase() || '';
+        return statut === 'terminé' || statut === 'termine' || statut === 'livré' || statut === 'livre';
+      });
+
+      const formattedInvoices = completedDemandes
+        .slice(0, 5)
+        .map((d, i) => ({
+          id: `inv-${d.id}-${i}`,
+          montant: parseFloat(String(d.budget_estime || '0').replace(/[^0-9.,]/g, '').replace(',', '.')) || 0,
+          date_emission: d.updated_at || d.created_at,
+          statut: 'paid'
+        }));
+
+      setInvoiceHistory(formattedInvoices);
+
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      console.error('Erreur lors du chargement des données du tableau de bord:', error);
     } finally {
       setLoading(false);
     }
@@ -141,22 +290,9 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Tableau de bord</h1>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="h-4 bg-muted rounded animate-pulse" />
-                <div className="h-4 w-4 bg-muted rounded animate-pulse" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-8 bg-muted rounded animate-pulse mb-2" />
-                <div className="h-3 bg-muted rounded animate-pulse w-3/4" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <p className="text-muted-foreground">Chargement de vos données...</p>
       </div>
     );
   }
@@ -176,78 +312,67 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
-        <Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Commandes
-            </CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Commandes totales</CardTitle>
+            <Package className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalOrders}</div>
-            <p className="text-xs text-muted-foreground">
-              Toutes vos commandes
+            <div className="text-3xl font-bold">{stats.totalOrders}</div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {stats.totalOrders > 0 
+                ? `${stats.completedReports} complétées • ${stats.activeOrders} en cours` 
+                : 'Aucune commande'}
             </p>
           </CardContent>
         </Card>
-
-        <Card>
+        
+        <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Commandes Actives
-            </CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Commandes actives</CardTitle>
+            <Clock className="h-5 w-5 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.activeOrders}</div>
-            <p className="text-xs text-muted-foreground">
-              En cours de traitement
+            <div className="text-3xl font-bold">{stats.activeOrders}</div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {stats.activeOrders > 0 
+                ? 'En cours de traitement' 
+                : 'Aucune commande active'}
             </p>
           </CardContent>
         </Card>
-
-        <Card>
+        
+        <Card className="border-l-4 border-l-amber-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Rapports Disponibles
-            </CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Factures en attente</CardTitle>
+            <FileText className="h-5 w-5 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.completedReports}</div>
-            <p className="text-xs text-muted-foreground">
-              Prêts au téléchargement
+            <div className="text-3xl font-bold">{stats.pendingInvoices}</div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {stats.pendingInvoices > 0 
+                ? 'À régler' 
+                : 'Tout est à jour'}
             </p>
           </CardContent>
         </Card>
-
-        <Card>
+        
+        <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Factures En Attente
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Budget total</CardTitle>
+            <DollarSign className="h-5 w-5 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingInvoices}</div>
-            <p className="text-xs text-muted-foreground">
-              À régler
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Montant Total
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalAmount.toFixed(2)} €</div>
-            <p className="text-xs text-muted-foreground">
-              Total des projets
+            <div className="text-3xl font-bold">
+              {stats.totalAmount > 0 
+                ? `${stats.totalAmount.toLocaleString('fr-FR')} DA` 
+                : '--'}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {stats.totalDays > 0 
+                ? `Sur ${stats.totalDays} jours` 
+                : 'Aucun délai défini'}
             </p>
           </CardContent>
         </Card>

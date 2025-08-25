@@ -12,14 +12,22 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft, MessageCircle, Phone, Mail } from 'lucide-react';
+import { useAppContext } from '@/context/AppContext';
 
 const ContactExpert = () => {
-  const [language] = useState('fr');
-  const [selectedCountry] = useState('dz');
+  const { language, setLanguage, country, setCountry } = useAppContext();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage as any);
+  };
+  
+  const handleCountryChange = (newCountry: string) => {
+    setCountry(newCountry as any);
+  };
 
   const [formData, setFormData] = useState({
     nom: '',
@@ -69,13 +77,8 @@ const ContactExpert = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header 
-        language={language}
-        country={selectedCountry}
-        onLanguageChange={() => {}}
-        onCountryChange={() => {}}
-      />
+    <div className="min-h-screen bg-background" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+      <Header />
 
       <main className="py-8">
         <div className="container mx-auto px-4 max-w-4xl">
@@ -306,7 +309,7 @@ const ContactExpert = () => {
         </div>
       </main>
 
-      <Footer language={language} />
+      <Footer />
     </div>
   );
 };

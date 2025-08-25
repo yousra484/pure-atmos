@@ -4,23 +4,19 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { ArrowRight, Play, Leaf, Wind, BarChart3, MapPin, Target, Globe } from 'lucide-react';
+import { ArrowRight, Play, Leaf, Wind, BarChart3, Globe, MapPin } from 'lucide-react';
 import { translations } from '@/utils/translations';
+import { useAppContext } from '@/context/AppContext';
 
 const Index = () => {
-  const [language, setLanguage] = useState('fr');
+  const { language } = useAppContext();
   const [selectedCountry, setSelectedCountry] = useState('dz');
   const navigate = useNavigate();
   const t = translations[language as keyof typeof translations];
 
   return (
     <div className="min-h-screen bg-background" dir={language === 'ar' ? 'rtl' : 'ltr'}>
-      <Header 
-        language={language}
-        country={selectedCountry}
-        onLanguageChange={setLanguage}
-        onCountryChange={setSelectedCountry}
-      />
+      <Header />
 
       <main>
         {/* Hero Section */}
@@ -36,7 +32,7 @@ const Index = () => {
               <div className="text-center lg:text-left">
                 <div className="inline-flex items-center gap-2 bg-accent/10 text-accent-foreground px-4 py-2 rounded-full text-sm font-medium mb-6">
                   <Leaf className="h-4 w-4" />
-                  Clean atmosphere for better future
+                  {t.heroSubtitle}
                 </div>
                 
                 <h1 className="text-4xl lg:text-6xl font-bold text-foreground mb-6 leading-tight">
@@ -192,7 +188,8 @@ const Index = () => {
         </section>
       </main>
 
-      <Footer language={language} />
+
+      <Footer  />
     </div>
   );
 };

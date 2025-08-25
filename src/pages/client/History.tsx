@@ -13,12 +13,17 @@ interface Order {
   id: string;
   titre: string;
   statut: string;
-  date_creation: string;
+  created_at: string;
+  type_etude: string;
+  zone_geographique: string;
+  budget_estime: string;
+  delai_souhaite: string;
+  description_projet?: string;
 }
 
 interface Invoice {
   id: string;
-  commande_id: string;
+  demande_etude_id: string;
   montant: number;
   statut: string;
   date_emission: string;
@@ -59,33 +64,65 @@ export default function History() {
 
       if (!profile) return;
 
-      // Fetch orders
+      // Fetch study requests (demandes_etudes) as orders
       const { data: ordersData } = await supabase
-        .from('commandes')
+        .from('demandes_etudes')
         .select('*')
         .eq('client_id', profile.id)
-        .order('date_creation', { ascending: false });
+        .order('created_at', { ascending: false });
 
-      // Fetch invoices with order details
-      const orderIds = ordersData?.map(o => o.id) || [];
-      const { data: invoicesData } = await supabase
-        .from('factures')
-        .select('*')
-        .in('commande_id', orderIds)
-        .order('date_emission', { ascending: false });
-
-      // Add order titles to invoices
-      const invoicesWithOrders = invoicesData?.map(invoice => ({
-        ...invoice,
-        commande: ordersData?.find(o => o.id === invoice.commande_id)
+      // Transform demandes_etudes to match Order interface
+      const transformedOrders = ordersData?.map(demande => ({
+        id: demande.id,
+        titre: demande.nom_entreprise || `Analyse ${demande.type_etude}`,
+        statut: demande.statut || 'en_attente',
+        created_at: demande.created_at,
+        type_etude: demande.type_etude,
+        zone_geographique: demande.zone_geographique,
+        budget_estime: demande.budget_estime,
+        delai_souhaite: demande.delai_souhaite,
+        description_projet: demande.description_projet
       })) || [];
 
-      setOrders(ordersData || []);
+      // For invoices, we'll create mock data based on completed orders
+      // In a real scenario, invoices would be generated when orders are completed
+      const invoicesWithOrders = transformedOrders
+        .filter(order => order.statut === 'termine')
+        .map(order => ({
+          id: `inv_${order.id}`,
+          demande_etude_id: order.id,
+          montant: getBudgetValue(order.budget_estime),
+          statut: 'paid',
+          date_emission: order.created_at,
+          commande: { titre: order.titre }
+        }));
+
+      setOrders(transformedOrders);
       setInvoices(invoicesWithOrders);
     } catch (error) {
       console.error('Error fetching history data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getBudgetValue = (budget: string): number => {
+    switch (budget) {
+      case 'moins_10k':
+        return 5000;
+      case '10k_50k':
+        return 30000;
+      case '50k_100k':
+        return 75000;
+      case '100k_500k':
+        return 300000;
+      case 'plus_500k':
+        return 750000;
+      case 'a_discuter':
+        return 0;
+      default:
+        const numericValue = parseFloat(budget?.replace(/[^0-9.,]/g, '')?.replace(',', '.') || '0');
+        return isNaN(numericValue) ? 0 : numericValue;
     }
   };
 
@@ -123,7 +160,7 @@ export default function History() {
       }
 
       filteredOrdersData = filteredOrdersData.filter(order => 
-        new Date(order.date_creation) >= dateThreshold
+        new Date(order.created_at) >= dateThreshold
       );
       filteredInvoicesData = filteredInvoicesData.filter(invoice => 
         new Date(invoice.date_emission) >= dateThreshold
@@ -240,11 +277,11 @@ export default function History() {
                   Montant Total
                 </p>
                 <p className="text-2xl font-bold">
-                  {getTotalAmount().toLocaleString('fr-FR')} €
+                  {getTotalAmount().toLocaleString('fr-FR')} DA
                 </p>
               </div>
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-primary font-bold">€</span>
+                <span className="text-primary font-bold">DA</span>
               </div>
             </div>
           </CardContent>
@@ -258,7 +295,7 @@ export default function History() {
                   Montant Payé
                 </p>
                 <p className="text-2xl font-bold text-green-600">
-                  {getPaidAmount().toLocaleString('fr-FR')} €
+                  {getPaidAmount().toLocaleString('fr-FR')} DA
                 </p>
               </div>
               <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
@@ -318,7 +355,7 @@ export default function History() {
                             {order.titre}
                           </TableCell>
                           <TableCell>
-                            {new Date(order.date_creation).toLocaleDateString('fr-FR')}
+                            {new Date(order.created_at).toLocaleDateString('fr-FR')}
                           </TableCell>
                           <TableCell>
                             <Badge variant={status.variant}>
@@ -388,7 +425,7 @@ export default function History() {
                             {new Date(invoice.date_emission).toLocaleDateString('fr-FR')}
                           </TableCell>
                           <TableCell>
-                            {(invoice.montant || 0).toLocaleString('fr-FR')} €
+                            {(invoice.montant || 0).toLocaleString('fr-FR')} DA
                           </TableCell>
                           <TableCell>
                             <Badge variant={status.variant}>

@@ -17,15 +17,10 @@ import {
   User
 } from 'lucide-react';
 import { translations } from '@/utils/translations';
+import { useAppContext } from '@/context/AppContext';
 
-interface CountriesProps {
-  language: string;
-  country: string;
-  onLanguageChange: (lang: string) => void;
-  onCountryChange: (country: string) => void;
-}
-
-export default function Countries({ language, country, onLanguageChange, onCountryChange }: CountriesProps) {
+export default function Countries() {
+  const { language, country } = useAppContext();
   const t = translations[language as keyof typeof translations];
 
   const countries = [
@@ -106,14 +101,19 @@ export default function Countries({ language, country, onLanguageChange, onCount
     }
   ];
 
+  const { setCountry, setLanguage } = useAppContext();
+
+  const handleCountryChange = (newCountry: string) => {
+    setCountry(newCountry as any);
+  };
+
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage as any);
+  };
+
   return (
     <div className="min-h-screen bg-background" dir={language === 'ar' ? 'rtl' : 'ltr'}>
-      <Header 
-        language={language}
-        country={country}
-        onLanguageChange={onLanguageChange}
-        onCountryChange={onCountryChange}
-      />
+      <Header />
 
       <main className="py-20">
         {/* Hero Section */}
@@ -262,7 +262,7 @@ export default function Countries({ language, country, onLanguageChange, onCount
         </section>
       </main>
 
-      <Footer language={language} />
+      <Footer />
     </div>
   );
 }
