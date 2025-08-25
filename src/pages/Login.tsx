@@ -1,32 +1,39 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { translations } from '@/utils/translations';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { useAppContext } from '@/context/AppContext';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { translations } from "@/utils/translations";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useAppContext } from "@/context/AppContext";
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [accountType, setAccountType] = useState('client');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState("client");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const { toast } = useToast();
   const navigate = useNavigate();
   const { language, setLanguage, country, setCountry } = useAppContext();
-  const t = translations[language as keyof typeof translations] || translations.fr;
-  
+  const t =
+    translations[language as keyof typeof translations] || translations.fr;
+
   const handleLanguageChange = (newLanguage: string) => {
-    setLanguage(newLanguage as any);
+    setLanguage(newLanguage as "fr" | "en" | "ar");
   };
-  
+
   const handleCountryChange = (newCountry: string) => {
-    setCountry(newCountry as any);
+    setCountry(newCountry as "dz" | "ma" | "tn" | "other");
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -43,15 +50,15 @@ const Login = () => {
 
       // Get user profile to determine role
       const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('type_compte')
-        .eq('user_id', data.user.id)
+        .from("profiles")
+        .select("type_compte")
+        .eq("user_id", data.user.id)
         .single();
 
       if (profileError) {
-        console.error('Error fetching profile:', profileError);
+        console.error("Error fetching profile:", profileError);
         // Default to client if profile not found
-        navigate('/client/dashboard');
+        navigate("/client/dashboard");
         return;
       }
 
@@ -61,17 +68,31 @@ const Login = () => {
       });
 
       // Redirect based on user role
-      if (profile && profile.type_compte === 'intervention') {
-        navigate('/intervenant/dashboard');
+      if (profile && profile.type_compte === "intervention") {
+        navigate("/intervenant/dashboard");
       } else {
-        navigate('/client/dashboard');
+        navigate("/client/dashboard");
       }
-    } catch (error: any) {
-      toast({
-        title: "Erreur de connexion",
-        description: error.message,
-        variant: "destructive",
-      });
+    } catch (error: unknown) {
+      // Handle email not confirmed error
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Une erreur inconnue est survenue";
+      if (errorMessage.includes("Email not confirmed")) {
+        toast({
+          title: "Erreur de connexion",
+          description:
+            "Veuillez confirmer votre adresse e-mail avant de vous connecter.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erreur de connexion",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +110,11 @@ const Login = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={accountType} onValueChange={setAccountType} className="w-full">
+          <Tabs
+            value={accountType}
+            onValueChange={setAccountType}
+            className="w-full"
+          >
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="client" className="text-sm">
                 {t.clientAccount}
@@ -98,7 +123,7 @@ const Login = () => {
                 {t.interventionAccount}
               </TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="client" className="space-y-4">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
@@ -124,11 +149,11 @@ const Login = () => {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Connexion...' : t.loginAsClient}
+                  {isLoading ? "Connexion..." : t.loginAsClient}
                 </Button>
               </form>
             </TabsContent>
-            
+
             <TabsContent value="intervention" className="space-y-4">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
@@ -154,26 +179,35 @@ const Login = () => {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Connexion...' : t.loginAsIntervention}
+                  {isLoading ? "Connexion..." : t.loginAsIntervention}
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
-          
+
           <div className="mt-6 space-y-4">
             <div className="text-center">
-              <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-primary hover:underline"
+              >
                 {t.forgotPassword}
               </Link>
             </div>
             <div className="text-center text-sm text-muted-foreground">
-              {t.noAccount}{' '}
-              <Link to="/signup" className="text-primary hover:underline font-medium">
+              {t.noAccount}{" "}
+              <Link
+                to="/signup"
+                className="text-primary hover:underline font-medium"
+              >
                 {t.signUp}
               </Link>
             </div>
             <div className="text-center">
-              <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+              <Link
+                to="/"
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
                 {t.backToHome}
               </Link>
             </div>

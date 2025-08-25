@@ -1,37 +1,62 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState, useCallback } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { MapPin, Clock, CheckCircle, AlertTriangle, Navigation, Camera, FileText } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  MapPin,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  Navigation,
+  Camera,
+  FileText,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 interface Mission {
   id: string;
-  demande_etude_id: string;
-  statut: string;
-  date_debut: string;
-  date_fin: string;
-  demandes_etudes?: {
-    nom_entreprise: string;
-    type_etude: string;
-    client_id: string;
-    description_projet: string;
-    zone_geographique: string;
-  };
-  nom_entreprise?: string;
-  type_etude?: string;
-  description_projet?: string;
-  zone_geographique?: string;
-  date_debut_mission?: string;
-  date_fin_mission?: string;
-  notes_terrain?: string;
-  latitude?: number;
-  longitude?: number;
+  nom_entreprise: string;
+  type_etude: string;
+  description_projet: string;
+  zone_geographique: string;
+  statut: 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'annulée';
+  budget_estime: string;
+  delai_souhaite: string;
+  date_acceptation: string | null;
+  date_debut_mission: string | null;
+  date_fin_mission: string | null;
+  intervenant_id: string | null;
+  client_id: string;
+  created_at: string;
+  contact_nom: string;
+  contact_email: string;
+  contact_telephone: string;
+  notes_terrain: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  // Legacy fields for compatibility
+  demande_etude_id?: string;
+  date_debut?: string;
+  date_fin?: string;
 }
 
 interface GeolocationData {
@@ -47,60 +72,70 @@ interface DemandeEtude {
   type_etude: string;
   description_projet: string;
   zone_geographique: string;
-  statut: string;
+  statut: 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'annulée';
   budget_estime: string;
   delai_souhaite: string;
-  date_acceptation: string;
-  date_debut_mission: string;
-  date_fin_mission: string;
-  intervenant_id: string;
+  date_acceptation: string | null;
+  date_debut_mission: string | null;
+  date_fin_mission: string | null;
+  intervenant_id: string | null;
   client_id: string;
   created_at: string;
+  contact_nom: string;
+  contact_email: string;
+  contact_telephone: string;
+  notes_terrain: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export default function Missions() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [missions, setMissions] = useState<Mission[]>([]);
-  const [availableDemandes, setAvailableDemandes] = useState<DemandeEtude[]>([]);
+  const [missions, setMissions] = useState<DemandeEtude[]>([]);
+  const [availableDemandes, setAvailableDemandes] = useState<DemandeEtude[]>(
+    []
+  );
+  const [allAssignedMissions, setAllAssignedMissions] = useState<
+    DemandeEtude[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [geoData, setGeoData] = useState<GeolocationData | null>(null);
-  const [fieldNotes, setFieldNotes] = useState('');
+  const [fieldNotes, setFieldNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      fetchMissions();
-    }
-  }, [user]);
-
-  const fetchMissions = async () => {
+  const fetchMissions = useCallback(async () => {
     setLoading(true);
     try {
       if (!user?.id) {
-        console.error('Aucun utilisateur connecté');
+        console.error("Aucun utilisateur connecté");
         return;
       }
 
       // Get user profile
       const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, type_compte')
-        .eq('user_id', user.id)
+        .from("profiles")
+        .select("id, type_compte")
+        .eq("user_id", user.id)
         .single();
 
-      if (!profile || profile.type_compte !== 'intervention') {
-        console.log('User is not an intervenant:', profile);
+      if (!profile || profile.type_compte !== "intervention") {
+        console.log("User is not an intervenant:", profile);
         return;
       }
 
-      console.log('Fetching missions for intervenant:', profile.id);
+      console.log(
+        "Fetching all study submissions for intervenant:",
+        profile.id
+      );
 
-      // Fetch TOUTES les demandes disponibles (en_attente) + mes demandes acceptées
-      const { data: toutesLesDemandesData, error: toutesDemandesError } = await supabase
-        .from('demandes_etudes')
-        .select(`
+      // Fetch ALL demandes_etudes for all intervenants to see
+      const { data: toutesLesDemandesData, error: toutesDemandesError } =
+        await supabase
+          .from("demandes_etudes")
+          .select(
+            `
           id,
           nom_entreprise,
           type_etude,
@@ -109,36 +144,63 @@ export default function Missions() {
           statut,
           budget_estime,
           delai_souhaite,
-          date_acceptation,
-          date_debut_mission,
-          date_fin_mission,
-          intervenant_id,
           client_id,
-          created_at
-        `)
-        .or(`statut.eq.en_attente,and(intervenant_id.eq.${profile.id},statut.in.(acceptée,en_cours,terminée))`)
-        .order('created_at', { ascending: false });
+          created_at,
+          contact_nom,
+          contact_email,
+          contact_telephone
+        `
+          )
+          .order("created_at", { ascending: false });
 
       if (toutesDemandesError) {
-        console.error('Erreur récupération demandes:', toutesDemandesError);
+        console.error("Erreur récupération demandes:", toutesDemandesError);
         return;
       }
 
-      console.log('Demandes trouvées:', toutesLesDemandesData);
+      console.log("Toutes les demandes trouvées:", toutesLesDemandesData);
 
-      // Séparer les demandes disponibles et mes missions
-      const demandesDisponibles = toutesLesDemandesData?.filter(d => d.statut === 'en_attente') || [];
-      const mesMissions = toutesLesDemandesData?.filter(d => d.intervenant_id === profile.id) || [];
+      // Add missing columns with fallback values for current database
+      const demandesAvecColonnesManquantes = toutesLesDemandesData?.map(d => ({
+        ...d,
+        statut: d.statut as 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'annulée',
+        intervenant_id: null as string | null,
+        date_acceptation: null as string | null,
+        date_debut_mission: null as string | null,
+        date_fin_mission: null as string | null,
+        notes_terrain: null as string | null,
+        latitude: null as number | null,
+        longitude: null as number | null
+      })) || [];
+
+      // Séparer les demandes selon leur statut et assignation
+      const demandesDisponibles = demandesAvecColonnesManquantes.filter(
+        (d) => d.statut === "en_attente"
+      );
+
+      const mesMissions = demandesAvecColonnesManquantes.filter(
+        (d) => d.statut === 'acceptée' || d.statut === 'en_cours' || d.statut === 'terminée'
+      );
+
+      const autresMissionsAssignees: DemandeEtude[] = [];
 
       setAvailableDemandes(demandesDisponibles);
       setMissions(mesMissions);
 
+      // Store all assigned missions for display (read-only for other intervenants)
+      setAllAssignedMissions(autresMissionsAssignees);
     } catch (error) {
-      console.error('Erreur générale:', error);
+      console.error("Erreur générale:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user) {
+      fetchMissions();
+    }
+  }, [user, fetchMissions]);
 
   // Fonction pour accepter une demande
   const accepterDemande = async (demandeId: string) => {
@@ -147,63 +209,154 @@ export default function Missions() {
 
       // Get user profile
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
         .single();
 
       if (!profile) return;
 
       // Accepter la demande
       const { error } = await supabase
-        .from('demandes_etudes')
+        .from("demandes_etudes")
         .update({
           intervenant_id: profile.id,
-          statut: 'acceptée',
-          date_acceptation: new Date().toISOString()
+          statut: "acceptée",
+          date_acceptation: new Date().toISOString(),
         })
-        .eq('id', demandeId)
-        .eq('statut', 'en_attente'); // Sécurité: seulement si encore en attente
+        .eq("id", demandeId)
+        .eq("statut", "en_attente"); // Sécurité: seulement si encore en attente
 
       if (error) {
-        console.error('Erreur acceptation demande:', error);
+        console.error("Erreur acceptation demande:", error);
         return;
       }
 
       // Recharger les données
       fetchMissions();
-      
-      console.log('Demande acceptée avec succès');
+
+      console.log("Demande acceptée avec succès");
     } catch (error) {
-      console.error('Erreur lors de l\'acceptation:', error);
+      console.error("Erreur lors de l'acceptation:", error);
     }
   };
 
-  // Fonction pour changer le statut d'une mission
-  const changerStatutMission = async (missionId: string, nouveauStatut: string) => {
+  // Fonction pour accepter une étude disponible
+  const handleAcceptStudy = async (studyId: string) => {
     try {
-      const updateData: any = { statut: nouveauStatut };
-      
-      if (nouveauStatut === 'en_cours') {
-        updateData.date_debut_mission = new Date().toISOString();
-      } else if (nouveauStatut === 'terminée') {
-        updateData.date_fin_mission = new Date().toISOString();
-      }
+      if (!user?.id) return;
 
-      const { error } = await supabase
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!profile) return;
+
+      // Atomic update to prevent race conditions
+      const { data: updatedStudy, error } = await supabase
         .from('demandes_etudes')
-        .update(updateData)
-        .eq('id', missionId);
+        .update({ 
+          statut: 'acceptée', 
+          // Note: These columns don't exist yet, will be added when migration is applied
+          // intervenant_id: profile.id, 
+          // date_acceptation: new Date().toISOString() 
+        })
+        .eq('id', studyId)
+        .eq('statut', 'en_attente')
+        // .is('intervenant_id', null) // Will be enabled after migration
+        .select()
+        .single();
 
       if (error) {
-        console.error('Erreur changement statut:', error);
+        console.error('Erreur lors de l\'acceptation:', error);
+        toast({
+          title: "Erreur",
+          description: "Cette étude a peut-être déjà été prise par un autre intervenant.",
+          variant: "destructive",
+        });
         return;
       }
 
-      fetchMissions();
-      console.log(`Statut changé vers: ${nouveauStatut}`);
+      if (updatedStudy) {
+        toast({
+          title: "Étude acceptée !",
+          description: `Vous avez accepté l'étude pour ${updatedStudy.nom_entreprise}`,
+        });
+        fetchMissions(); // Refresh data
+      }
     } catch (error) {
-      console.error('Erreur changement statut:', error);
+      console.error('Erreur:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors de l'acceptation.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Fonction pour démarrer une mission
+  const handleStartMission = async (missionId: string) => {
+    try {
+      const { error } = await supabase
+        .from('demandes_etudes')
+        .update({ 
+          statut: 'en_cours',
+          // date_debut_mission: new Date().toISOString() // Will be enabled after migration
+        })
+        .eq('id', missionId)
+        .eq('statut', 'acceptée');
+
+      if (error) {
+        console.error('Erreur démarrage mission:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de démarrer la mission.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Mission démarrée !",
+        description: "La mission terrain a été démarrée avec succès.",
+      });
+      fetchMissions();
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  // Fonction pour terminer une mission
+  const handleCompleteMission = async (missionId: string) => {
+    try {
+      const { error } = await supabase
+        .from('demandes_etudes')
+        .update({ 
+          statut: 'terminée',
+          // date_fin_mission: new Date().toISOString() // Will be enabled after migration
+        })
+        .eq('id', missionId)
+        .eq('statut', 'en_cours');
+
+      if (error) {
+        console.error('Erreur fin mission:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de terminer la mission.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Mission terminée !",
+        description: "La mission a été marquée comme terminée. Vous pouvez maintenant rédiger le rapport.",
+      });
+      fetchMissions();
+    } catch (error) {
+      console.error('Erreur:', error);
     }
   };
 
@@ -227,11 +380,13 @@ export default function Missions() {
         });
         toast({
           title: "Position obtenue",
-          description: `Coordonnées: ${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`,
+          description: `Coordonnées: ${position.coords.latitude.toFixed(
+            6
+          )}, ${position.coords.longitude.toFixed(6)}`,
         });
       },
       (error) => {
-        console.error('Geolocation error:', error);
+        console.error("Geolocation error:", error);
         toast({
           title: "Erreur de géolocalisation",
           description: "Impossible d'obtenir votre position.",
@@ -249,27 +404,33 @@ export default function Missions() {
   const startMission = async (missionId: string) => {
     try {
       const { error } = await supabase
-        .from('demandes_etudes')
-        .update({ 
-          statut: 'en_cours',
-          date_debut_mission: new Date().toISOString()
+        .from("demandes_etudes")
+        .update({
+          statut: "en_cours",
+          date_debut_mission: new Date().toISOString(),
         })
-        .eq('id', missionId);
+        .eq("id", missionId);
 
       if (error) throw error;
 
-      setMissions(prev => prev.map(m => 
-        m.id === missionId 
-          ? { ...m, statut: 'en_cours', date_debut_mission: new Date().toISOString() }
-          : m
-      ));
+      setMissions((prev) =>
+        prev.map((m) =>
+          m.id === missionId
+            ? {
+                ...m,
+                statut: "en_cours",
+                date_debut_mission: new Date().toISOString(),
+              }
+            : m
+        )
+      );
 
       toast({
         title: "Mission démarrée",
         description: "La mission a été marquée comme en cours.",
       });
     } catch (error) {
-      console.error('Error starting mission:', error);
+      console.error("Error starting mission:", error);
       toast({
         title: "Erreur",
         description: "Impossible de démarrer la mission.",
@@ -285,31 +446,33 @@ export default function Missions() {
     try {
       // Update mission with field data
       const { error } = await supabase
-        .from('demandes_etudes')
+        .from("demandes_etudes")
         .update({
-          statut: 'terminée',
+          statut: "terminée",
           date_fin_mission: new Date().toISOString(),
           description: fieldNotes,
           latitude: geoData.latitude,
           longitude: geoData.longitude,
         })
-        .eq('id', selectedMission.id);
+        .eq("id", selectedMission.id);
 
       if (error) throw error;
 
       // Update local state
-      setMissions(prev => prev.map(m => 
-        m.id === selectedMission.id 
-          ? { 
-              ...m, 
-              statut: 'terminée',
-              date_fin_mission: new Date().toISOString(),
-              description: fieldNotes,
-              latitude: geoData.latitude,
-              longitude: geoData.longitude,
-            }
-          : m
-      ));
+      setMissions((prev) =>
+        prev.map((m) =>
+          m.id === selectedMission.id
+            ? {
+                ...m,
+                statut: "terminée",
+                date_fin_mission: new Date().toISOString(),
+                description: fieldNotes,
+                latitude: geoData.latitude,
+                longitude: geoData.longitude,
+              }
+            : m
+        )
+      );
 
       toast({
         title: "Données soumises",
@@ -318,10 +481,10 @@ export default function Missions() {
 
       // Reset form
       setSelectedMission(null);
-      setFieldNotes('');
+      setFieldNotes("");
       setGeoData(null);
     } catch (error) {
-      console.error('Error submitting field data:', error);
+      console.error("Error submitting field data:", error);
       toast({
         title: "Erreur",
         description: "Impossible de soumettre les données.",
@@ -334,16 +497,39 @@ export default function Missions() {
 
   const getStatusBadge = (status: string) => {
     const statusMap = {
-      'assignée': { label: 'Assignée', variant: 'secondary' as const, icon: Clock },
-      'en_cours': { label: 'En cours', variant: 'default' as const, icon: Clock },
-      'terminée': { label: 'Terminée', variant: 'default' as const, icon: CheckCircle },
-      'annulée': { label: 'Annulée', variant: 'destructive' as const, icon: AlertTriangle },
+      en_attente: {
+        label: "En attente",
+        variant: "secondary" as const,
+        icon: Clock,
+      },
+      acceptée: {
+        label: "Acceptée",
+        variant: "default" as const,
+        icon: CheckCircle,
+      },
+      en_cours: { 
+        label: "En cours", 
+        variant: "default" as const, 
+        icon: Clock 
+      },
+      terminée: {
+        label: "Terminée",
+        variant: "default" as const,
+        icon: CheckCircle,
+      },
+      annulée: {
+        label: "Annulée",
+        variant: "destructive" as const,
+        icon: AlertTriangle,
+      },
     };
-    return statusMap[status as keyof typeof statusMap] || { 
-      label: status, 
-      variant: 'secondary' as const, 
-      icon: Clock 
-    };
+    return (
+      statusMap[status as keyof typeof statusMap] || {
+        label: status,
+        variant: "secondary" as const,
+        icon: Clock,
+      }
+    );
   };
 
   if (loading) {
@@ -376,186 +562,222 @@ export default function Missions() {
         </p>
       </div>
 
-      <div className="space-y-4">
-        {availableDemandes.length > 0 && (
-          <div>
-            <h2 className="text-2xl font-bold">Demandes Disponibles</h2>
-            {availableDemandes.map((demande) => (
-              <Card key={demande.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg">
-                        {demande.nom_entreprise}
-                      </CardTitle>
-                      <CardDescription>
-                        Type: {demande.type_etude}
-                      </CardDescription>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        {demande.zone_geographique}
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button onClick={() => accepterDemande(demande.id)}>
-                        Accepter
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {missions.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">Aucune mission assignée</p>
-            </CardContent>
-          </Card>
-        ) : (
-          missions.map((mission) => {
-            const status = getStatusBadge(mission.statut);
-            const StatusIcon = status.icon;
-            
-            return (
-              <Card key={mission.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg">
-                        {mission.nom_entreprise}
-                      </CardTitle>
-                      <CardDescription>
-                        Type: {mission.type_etude}
-                      </CardDescription>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        {mission.zone_geographique}
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant={status.variant}>
-                        <StatusIcon className="w-3 h-3 mr-1" />
-                        {status.label}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+      {/* Available Studies Section */}
+      {availableDemandes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl">Études Disponibles</CardTitle>
+                <CardDescription>
+                  Études non assignées - Cliquez "Accepter" pour les prendre en charge
+                </CardDescription>
+              </div>
+              <Badge variant="secondary" className="text-lg px-3 py-1">
+                {availableDemandes.length} disponibles
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {availableDemandes.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune étude disponible</h3>
+                <p className="text-gray-500">
+                  Toutes les études ont été assignées ou sont en cours de traitement
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {availableDemandes.map((demande) => (
+                  <div
+                    key={demande.id}
+                    className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="space-y-3">
                       <div>
-                        <span className="font-medium text-muted-foreground">Date début:</span>
-                        <p className="mt-1">{new Date(mission.date_debut_mission).toLocaleDateString('fr-FR')}</p>
-                      </div>
-                      <div>
-                        <span className="font-medium text-muted-foreground">Date fin:</span>
-                        <p className="mt-1">
-                          {mission.date_fin_mission 
-                            ? new Date(mission.date_fin_mission).toLocaleDateString('fr-FR')
-                            : 'En cours'
-                          }
+                        <h3 className="font-semibold text-gray-900 text-lg">
+                          {demande.nom_entreprise}
+                        </h3>
+                        <p className="text-sm text-blue-600 font-medium">
+                          {demande.type_etude}
                         </p>
                       </div>
+                      
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <div className="flex items-center">
+                          <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                          <span>{demande.zone_geographique}</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Clock className="w-4 h-4 mr-2 text-gray-400" />
+                          <span>Créé le {new Date(demande.created_at).toLocaleDateString('fr-FR')}</span>
+                        </div>
+                      </div>
+
+                      {demande.description_projet && (
+                        <p className="text-sm text-gray-600 line-clamp-2">
+                          {demande.description_projet}
+                        </p>
+                      )}
+
+                      <div className="flex space-x-2 pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                        >
+                          <FileText className="w-4 h-4 mr-1" />
+                          Détails
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAcceptStudy(demande.id)}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Accepter
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* My Missions Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Mes Missions</CardTitle>
+              <CardDescription>
+                Missions assignées et en cours de traitement
+              </CardDescription>
+            </div>
+            <Badge variant="default" className="text-lg px-3 py-1">
+              {missions.length} missions
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+
+            {missions.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                  <MapPin className="w-12 h-12 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune mission assignée</h3>
+                <p className="text-gray-500 mb-4">
+                  Acceptez des études disponibles pour commencer vos missions terrain
+                </p>
+                {availableDemandes.length > 0 && (
+                  <Button
+                    onClick={() => {
+                      const availableStudiesSection = document.querySelector('[data-section="available-studies"]');
+                      availableStudiesSection?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Voir les études disponibles
+                  </Button>
+                )}
+              </div>
+            ) : (
+              missions.map((mission) => {
+                const status = getStatusBadge(mission.statut);
+                const StatusIcon = status.icon;
+
+                return (
+                  <div
+                    key={mission.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-gray-900">
+                          {mission.type_etude || 'Mission'} - {mission.nom_entreprise || 'Sans nom'}
+                        </h4>
+                        <Badge variant={status.variant} className="flex items-center">
+                          <StatusIcon className="w-3 h-3 mr-1" />
+                          {status.label}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center text-sm text-gray-600 space-x-4">
+                        <span className="flex items-center">
+                          <MapPin className="w-4 h-4 mr-1" />
+                          {mission.zone_geographique || 'Lieu non spécifié'}
+                        </span>
+                        <span className="flex items-center">
+                          <Clock className="w-4 h-4 mr-1" />
+                          Créé le {new Date(mission.created_at || Date.now()).toLocaleDateString('fr-FR')}
+                        </span>
+                      </div>
+
+                      {mission.description_projet && (
+                        <p className="text-sm text-gray-600 line-clamp-2">
+                          {mission.description_projet}
+                        </p>
+                      )}
                     </div>
                     
-                    {mission.latitude && mission.longitude && (
-                      <div className="text-sm">
-                        <span className="font-medium text-muted-foreground">Coordonnées:</span>
-                        <p className="mt-1">
-                          {mission.latitude.toFixed(6)}, {mission.longitude.toFixed(6)}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex space-x-2">
-                      {mission.statut === 'en_attente' && (
-                        <Button onClick={() => startMission(mission.id)}>
-                          <Clock className="w-4 h-4 mr-2" />
-                          Démarrer Mission
+                    <div className="flex items-center space-x-2 ml-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        Détails
+                      </Button>
+                      
+                      {mission.statut === 'acceptée' && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleStartMission(mission.id)}
+                          className="bg-orange-600 hover:bg-orange-700 text-white"
+                        >
+                          <Navigation className="w-4 h-4 mr-1" />
+                          Commencer
                         </Button>
                       )}
                       
                       {mission.statut === 'en_cours' && (
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button 
-                              onClick={() => setSelectedMission(mission)}
-                              variant="default"
-                            >
-                              <FileText className="w-4 h-4 mr-2" />
-                              Saisir Données
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>Saisie des Données Terrain</DialogTitle>
-                              <DialogDescription>
-                                Mission: {mission.nom_entreprise}
-                              </DialogDescription>
-                            </DialogHeader>
-                            
-                            <div className="space-y-4">
-                              {/* Geolocation Section */}
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Géolocalisation</label>
-                                <div className="flex space-x-2">
-                                  <Button 
-                                    type="button" 
-                                    onClick={getCurrentLocation}
-                                    variant="outline"
-                                  >
-                                    <Navigation className="w-4 h-4 mr-2" />
-                                    Obtenir Position
-                                  </Button>
-                                  {geoData && (
-                                    <div className="text-sm text-muted-foreground flex items-center">
-                                      <MapPin className="w-4 h-4 mr-1" />
-                                      {geoData.latitude.toFixed(6)}, {geoData.longitude.toFixed(6)}
-                                      <span className="ml-2">
-                                        (±{geoData.accuracy.toFixed(0)}m)
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Field Notes */}
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Notes de terrain</label>
-                                <Textarea
-                                  placeholder="Saisissez vos observations, mesures et remarques..."
-                                  value={fieldNotes}
-                                  onChange={(e) => setFieldNotes(e.target.value)}
-                                  rows={6}
-                                />
-                              </div>
-                            </div>
-
-                            <DialogFooter>
-                              <DialogTrigger asChild>
-                                <Button variant="outline">Annuler</Button>
-                              </DialogTrigger>
-                              <Button 
-                                onClick={submitFieldData}
-                                disabled={!geoData || !fieldNotes.trim() || isSubmitting}
-                              >
-                                {isSubmitting ? "Envoi..." : "Soumettre Données"}
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+                        <Button
+                          size="sm"
+                          onClick={() => handleCompleteMission(mission.id)}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Terminer
+                        </Button>
+                      )}
+                      
+                      {mission.statut === 'terminée' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                        >
+                          <FileText className="w-4 h-4 mr-1" />
+                          Rapport
+                        </Button>
                       )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
+                );
+              })
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
