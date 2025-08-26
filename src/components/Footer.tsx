@@ -14,6 +14,9 @@ import {
 import { translations } from '@/utils/translations';
 import { useAppContext } from '@/context/AppContext';
 
+// Import du logo
+const logoPath = '/lovable-uploads/eefd4b80-ad21-48be-86d4-442a67f14076.png';
+
 export function Footer() {
   const { language } = useAppContext();
   const t = translations[language as keyof typeof translations];
@@ -27,9 +30,10 @@ export function Footer() {
           <div className="lg:col-span-2">
             <div className="flex items-center space-x-3 mb-6">
               <img 
-                src="public/lovable-uploads/eefd4b80-ad21-48be-86d4-442a67f14076.png" 
+                src={logoPath}
                 alt="Pure Atmos Logo" 
-                className="h-12 w-auto brightness-0 invert"
+                className="h-12 w-auto"
+                onLoad={() => console.log('Logo loaded successfully from:', logoPath)}
               />
               <div>
                 <h3 className="text-xl font-bold">Pure Atmos</h3>

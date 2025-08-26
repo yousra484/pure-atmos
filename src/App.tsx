@@ -25,6 +25,13 @@ import IntervenantDashboard from "./pages/intervenant/Dashboard";
 import IntervenantMissions from "./pages/intervenant/Missions";
 import IntervenantReports from "./pages/intervenant/Reports";
 import IntervenantMessages from "./pages/intervenant/Messages";
+import AdminLayout from "./components/admin/AdminLayout";
+import AdminDashboard from "@/pages/admin/Dashboard";
+import AdminProjects from "@/pages/admin/Projects";
+import AdminAccounts from "@/pages/admin/Accounts";
+import AdminReports from "@/pages/admin/Reports";
+import AdminStatistics from "@/pages/admin/Statistics";
+import AdminTranslations from "@/pages/admin/Translations";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +66,16 @@ const App = () => (
               <Route path="missions" element={<IntervenantMissions />} />
               <Route path="reports" element={<IntervenantReports />} />
               <Route path="messages" element={<IntervenantMessages />} />
+            </Route>
+            
+            {/* Admin Space Routes */}
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="projects" element={<AdminProjects />} />
+              <Route path="accounts" element={<AdminAccounts />} />
+              <Route path="reports" element={<AdminReports />} />
+              <Route path="statistics" element={<AdminStatistics />} />
+              <Route path="translations" element={<AdminTranslations />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

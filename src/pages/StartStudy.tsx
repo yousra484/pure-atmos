@@ -44,6 +44,7 @@ const StartStudy = () => {
     contact_nom: "",
     contact_email: "",
     contact_telephone: "",
+    pays:"",
   });
 
   const handleInputChange = (
@@ -259,7 +260,7 @@ const StartStudy = () => {
                     </SelectContent>
                   </Select>
                 </div>
-
+                
                 <div className="space-y-2">
                   <Label htmlFor="zone_geographique">Zone géographique *</Label>
                   <Input
@@ -271,7 +272,30 @@ const StartStudy = () => {
                     required
                   />
                 </div>
-              </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="pays">Pays *</Label>
+                  <Select
+                    value={formData.pays}
+                    onValueChange={(value) =>
+                      handleSelectChange("pays", value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionnez le pays" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="algerie">Algérie</SelectItem>
+                      <SelectItem value="kenya">Kenya</SelectItem>
+                      <SelectItem value="tanzanie">Tanzanie</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  </div>
+                </div> 
+            
+
+              
+              
 
               <div className="space-y-2">
                 <Label htmlFor="description_projet">
