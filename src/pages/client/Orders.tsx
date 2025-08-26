@@ -22,20 +22,12 @@ interface Order {
   description?: string;
 }
 
-interface Mission {
-  id: string;
-  commande_id: string;
-  intervenant_id: string;
-  statut: string;
-  date_debut: string;
-  date_fin: string;
-}
 
 export default function Orders() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [missions, setMissions] = useState<Mission[]>([]);
+  const [missions, setMissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("orders");
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -80,7 +72,7 @@ export default function Orders() {
       // For now, we'll keep missions empty since they're linked to commandes table
       // In a real scenario, you might want to create missions when demandes_etudes are accepted
       setOrders(transformedOrders);
-      setMissions([]);
+      //setMissions([]);
     } catch (error) {
       console.error('Error fetching orders and missions:', error);
     } finally {
@@ -91,11 +83,11 @@ export default function Orders() {
   const getStatusBadge = (status: string) => {
     const statusMap = {
       'en_attente': { label: 'En attente', variant: 'secondary' as const, icon: Clock },
-      'accepte': { label: 'Accepté', variant: 'default' as const, icon: CheckCircle },
+      'acceptée': { label: 'Acceptée', variant: 'default' as const, icon: CheckCircle },
       'en_cours': { label: 'En cours', variant: 'default' as const, icon: Clock },
-      'termine': { label: 'Terminé', variant: 'default' as const, icon: CheckCircle },
-      'annule': { label: 'Annulé', variant: 'destructive' as const, icon: XCircle },
-      'refuse': { label: 'Refusé', variant: 'destructive' as const, icon: XCircle },
+      'terminée': { label: 'Terminée', variant: 'default' as const, icon: CheckCircle },
+      'annulée': { label: 'Annulée', variant: 'destructive' as const, icon: XCircle },
+      'refusée': { label: 'Refusée', variant: 'destructive' as const, icon: XCircle },
     };
     return statusMap[status as keyof typeof statusMap] || { 
       label: status, 
@@ -146,7 +138,7 @@ export default function Orders() {
     try {
       const { error } = await supabase
         .from('demandes_etudes')
-        .update({ statut: 'annule' })
+        .update({ statut: 'annulée' })
         .eq('id', orderId);
 
       if (error) throw error;
@@ -155,7 +147,7 @@ export default function Orders() {
       setOrders(prevOrders => 
         prevOrders.map(order => 
           order.id === orderId 
-            ? { ...order, statut: 'annule' }
+            ? { ...order, statut: 'annulée' }
             : order
         )
       );
@@ -217,7 +209,7 @@ export default function Orders() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="orders">Commandes</TabsTrigger>
-          <TabsTrigger value="missions">Missions</TabsTrigger>
+         
         </TabsList>
 
         <TabsContent value="orders" className="space-y-4">
@@ -232,7 +224,7 @@ export default function Orders() {
               {orders.map((order) => {
                 const status = getStatusBadge(order.statut);
                 const StatusIcon = status.icon;
-                const orderMissions = getMissionsForOrder(order.id);
+                //const orderMissions = getMissionsForOrder(order.id);
                 
                 return (
                   <Card key={order.id}>
@@ -324,69 +316,7 @@ export default function Orders() {
           )}
         </TabsContent>
 
-        <TabsContent value="missions" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Toutes les Missions</CardTitle>
-              <CardDescription>
-                Vue d'ensemble de toutes vos missions
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {missions.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  Aucune mission trouvée
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Mission</TableHead>
-                      <TableHead>Commande</TableHead>
-                      <TableHead>Date début</TableHead>
-                      <TableHead>Date fin</TableHead>
-                      <TableHead>Statut</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {missions.map((mission) => {
-                      const order = orders.find(o => o.id === mission.commande_id);
-                      const status = getStatusBadge(mission.statut);
-                      const StatusIcon = status.icon;
-                      
-                      return (
-                        <TableRow key={mission.id}>
-                          <TableCell className="font-medium">
-                            #{mission.id.slice(0, 8)}
-                          </TableCell>
-                          <TableCell>{order?.titre || 'N/A'}</TableCell>
-                          <TableCell>
-                            {mission.date_debut ? 
-                              new Date(mission.date_debut).toLocaleDateString('fr-FR') : 
-                              'Non définie'
-                            }
-                          </TableCell>
-                          <TableCell>
-                            {mission.date_fin ? 
-                              new Date(mission.date_fin).toLocaleDateString('fr-FR') : 
-                              'En cours'
-                            }
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={status.variant}>
-                              <StatusIcon className="w-3 h-3 mr-1" />
-                              {status.label}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+        
       </Tabs>
     </div>
   );

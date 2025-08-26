@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Download, Eye, Filter } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Calendar, Download, Eye, Filter, MapPin, Clock, Building, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -19,6 +20,8 @@ interface Order {
   budget_estime: string;
   delai_souhaite: string;
   description_projet?: string;
+  nom_entreprise?: string;
+  secteur_activite?: string;
 }
 
 interface Invoice {
@@ -42,6 +45,8 @@ export default function History() {
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -81,7 +86,9 @@ export default function History() {
         zone_geographique: demande.zone_geographique,
         budget_estime: demande.budget_estime,
         delai_souhaite: demande.delai_souhaite,
-        description_projet: demande.description_projet
+        description_projet: demande.description_projet,
+        nom_entreprise: demande.nom_entreprise,
+        secteur_activite: demande.secteur_activite
       })) || [];
 
       // For invoices, we'll create mock data based on completed orders
@@ -176,8 +183,8 @@ export default function History() {
       const statusMap = {
         'en_attente': { label: 'En attente', variant: 'secondary' as const },
         'en_cours': { label: 'En cours', variant: 'default' as const },
-        'termine': { label: 'Terminé', variant: 'default' as const },
-        'annule': { label: 'Annulé', variant: 'destructive' as const },
+        'terminée': { label: 'Terminé', variant: 'default' as const },
+        'annulée': { label: 'Annulé', variant: 'destructive' as const },
       };
       return statusMap[status as keyof typeof statusMap] || { 
         label: status, 
@@ -198,13 +205,57 @@ export default function History() {
   };
 
   const getTotalAmount = () => {
-    return filteredInvoices.reduce((total, invoice) => total + (invoice.montant || 0), 0);
+    // Calculer le montant total basé sur les commandes non-annulées
+    return filteredOrders
+      .filter(order => order.statut !== 'annulée')
+      .reduce((total, order) => total + getBudgetValue(order.budget_estime), 0);
   };
 
   const getPaidAmount = () => {
     return filteredInvoices
       .filter(invoice => invoice.statut === 'paid')
       .reduce((total, invoice) => total + (invoice.montant || 0), 0);
+  };
+
+  const getBudgetDisplay = (budget: string) => {
+    switch (budget) {
+      case 'moins_10k':
+        return 'Moins de 10,000 DA';
+      case '10k_50k':
+        return '10,000 - 50,000 DA';
+      case '50k_100k':
+        return '50,000 - 100,000 DA';
+      case '100k_500k':
+        return '100,000 - 500,000 DA';
+      case 'plus_500k':
+        return 'Plus de 500,000 DA';
+      case 'a_discuter':
+        return 'À discuter';
+      default:
+        return budget || 'Non spécifié';
+    }
+  };
+
+  const getDelayDisplay = (delay: string) => {
+    switch (delay) {
+      case 'urgent':
+        return 'Urgent (1-2 semaines)';
+      case '1_mois':
+        return '1 mois';
+      case '3_mois':
+        return '3 mois';
+      case '6_mois':
+        return '6 mois';
+      case 'flexible':
+        return 'Flexible';
+      default:
+        return delay || 'Non spécifié';
+    }
+  };
+
+  const handleViewDetails = (order: Order) => {
+    setSelectedOrder(order);
+    setIsDetailDialogOpen(true);
   };
 
   if (loading) {
@@ -294,9 +345,11 @@ export default function History() {
                 <p className="text-sm font-medium text-muted-foreground">
                   Montant Payé
                 </p>
-                <p className="text-2xl font-bold text-green-600">
-                  {getPaidAmount().toLocaleString('fr-FR')} DA
-                </p>
+                <div className="text-3xl font-bold text-green-600">
+                  {getTotalAmount() > 0 
+                    ? `${getTotalAmount().toLocaleString('fr-FR')} DA` 
+                    : '--'}
+                </div>
               </div>
               <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
                 <span className="text-green-600 font-bold">✓</span>
@@ -322,9 +375,9 @@ export default function History() {
               <SelectContent>
                 <SelectItem value="all">Tous les statuts</SelectItem>
                 <SelectItem value="en_attente">En attente</SelectItem>
-                <SelectItem value="en_cours">En cours</SelectItem>
-                <SelectItem value="termine">Terminé</SelectItem>
-                <SelectItem value="annule">Annulé</SelectItem>
+                <SelectItem value="acceptée">En cours</SelectItem>
+                <SelectItem value="terminée">Terminé</SelectItem>
+                <SelectItem value="annulée">Annulé</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -363,10 +416,129 @@ export default function History() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-4 h-4 mr-1" />
-                              Détails
-                            </Button>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleViewDetails(order)}
+                                >
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  Détails
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                                <DialogHeader>
+                                  <DialogTitle className="text-xl font-semibold text-gray-900">
+                                    Détails de la demande d'étude
+                                  </DialogTitle>
+                                  <DialogDescription>
+                                    Informations complètes sur votre demande
+                                  </DialogDescription>
+                                </DialogHeader>
+                                
+                                {selectedOrder && (
+                                  <div className="space-y-6">
+                                    {/* Company Information */}
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                      <h3 className="font-semibold text-lg mb-3 text-gray-900 flex items-center">
+                                        <Building className="w-5 h-5 mr-2 text-blue-500" />
+                                        Informations de l'entreprise
+                                      </h3>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                          <label className="text-sm font-medium text-gray-600">Nom de l'entreprise</label>
+                                          <p className="text-gray-900 font-medium">{selectedOrder.nom_entreprise || 'Non spécifié'}</p>
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-gray-600">Secteur d'activité</label>
+                                          <p className="text-gray-900">{selectedOrder.secteur_activite || 'Non spécifié'}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Study Information */}
+                                    <div className="bg-blue-50 p-4 rounded-lg">
+                                      <h3 className="font-semibold text-lg mb-3 text-gray-900 flex items-center">
+                                        <FileText className="w-5 h-5 mr-2 text-blue-500" />
+                                        Détails de l'étude
+                                      </h3>
+                                      <div className="space-y-3">
+                                        <div>
+                                          <label className="text-sm font-medium text-gray-600">Type d'étude</label>
+                                          <p className="text-gray-900 font-medium">{selectedOrder.type_etude}</p>
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-gray-600">Zone géographique</label>
+                                          <p className="text-gray-900 flex items-center">
+                                            <MapPin className="w-4 h-4 mr-1 text-gray-500" />
+                                            {selectedOrder.zone_geographique}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-gray-600">Description du projet</label>
+                                          <p className="text-gray-900 leading-relaxed">{selectedOrder.description_projet || 'Aucune description fournie'}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Project Details */}
+                                    <div className="bg-green-50 p-4 rounded-lg">
+                                      <h3 className="font-semibold text-lg mb-3 text-gray-900 flex items-center">
+                                        <Clock className="w-5 h-5 mr-2 text-green-500" />
+                                        Détails du projet
+                                      </h3>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                          <label className="text-sm font-medium text-gray-600">Budget estimé</label>
+                                          <p className="text-gray-900">{getBudgetDisplay(selectedOrder.budget_estime)}</p>
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-gray-600">Délai souhaité</label>
+                                          <p className="text-gray-900 flex items-center">
+                                            <Clock className="w-4 h-4 mr-1 text-gray-500" />
+                                            {getDelayDisplay(selectedOrder.delai_souhaite)}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Status and Dates */}
+                                    <div className="bg-purple-50 p-4 rounded-lg">
+                                      <h3 className="font-semibold text-lg mb-3 text-gray-900 flex items-center">
+                                        <Calendar className="w-5 h-5 mr-2 text-purple-500" />
+                                        Statut et dates
+                                      </h3>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                          <label className="text-sm font-medium text-gray-600">Statut</label>
+                                          <div className="flex items-center mt-1">
+                                            <Badge 
+                                              variant={getStatusBadge(selectedOrder.statut, 'order').variant}
+                                              className="capitalize"
+                                            >
+                                              {getStatusBadge(selectedOrder.statut, 'order').label}
+                                            </Badge>
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <label className="text-sm font-medium text-gray-600">Date de création</label>
+                                          <p className="text-gray-900">
+                                            {new Date(selectedOrder.created_at).toLocaleDateString('fr-FR', {
+                                              year: 'numeric',
+                                              month: 'long',
+                                              day: 'numeric',
+                                              hour: '2-digit',
+                                              minute: '2-digit'
+                                            })}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </DialogContent>
+                            </Dialog>
                           </TableCell>
                         </TableRow>
                       );
