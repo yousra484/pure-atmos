@@ -19,14 +19,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  MapPin,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  Navigation,
-  Camera,
   FileText,
+  MapPin,
+  Calendar,
+  Clock,
+  User,
+  Phone,
+  Mail,
+  Upload,
+  CheckCircle,
+  AlertCircle,
+  XCircle,
+  Loader2,
+  Eye,
+  AlertTriangle,
+  Filter,
+  Navigation,
+  CheckSquare,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -38,7 +49,7 @@ interface Mission {
   type_etude: string;
   description_projet: string;
   zone_geographique: string;
-  statut: 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'annulée';
+  statut: "en_attente" | "acceptée" | "en_cours" | "terminée" | "annulée";
   budget_estime: string;
   delai_souhaite: string;
   date_acceptation: string | null;
@@ -72,7 +83,13 @@ interface DemandeEtude {
   type_etude: string;
   description_projet: string;
   zone_geographique: string;
-  statut: 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'annulée';
+  statut:
+    | "en_attente"
+    | "acceptée"
+    | "en_cours"
+    | "terminée"
+    | "complete"
+    | "annulée";
   budget_estime: string;
   delai_souhaite: string;
   date_acceptation: string | null;
@@ -84,9 +101,14 @@ interface DemandeEtude {
   contact_nom: string;
   contact_email: string;
   contact_telephone: string;
+  email_contact: string;
+  telephone_contact: string;
   notes_terrain: string | null;
   latitude: number | null;
   longitude: number | null;
+  rapport_url: string | null;
+  rapport_uploaded_at: string | null;
+  secteur_activite: string | null;
 }
 
 export default function Missions() {
@@ -101,9 +123,65 @@ export default function Missions() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+  const [selectedStudy, setSelectedStudy] = useState<DemandeEtude | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [selectedReportMission, setSelectedReportMission] =
+    useState<DemandeEtude | null>(null);
+  const [reportFile, setReportFile] = useState<File | null>(null);
+  const [isUploadingReport, setIsUploadingReport] = useState(false);
   const [geoData, setGeoData] = useState<GeolocationData | null>(null);
   const [fieldNotes, setFieldNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Helper function to categorize studies by status
+  const categorizeStudiesByStatus = (studies: DemandeEtude[]) => {
+    const categories: { [key: string]: DemandeEtude[] } = {};
+
+    studies.forEach((study) => {
+      const status = study.statut || "en_attente";
+      if (!categories[status]) {
+        categories[status] = [];
+      }
+      categories[status].push(study);
+    });
+
+    return categories;
+  };
+
+  // Get unique statuses for tabs with proper labels
+  const getStatusCategories = (studies: DemandeEtude[]) => {
+    const statuses = [...new Set(studies.map((s) => s.statut))];
+    const statusOrder: Array<
+      | "acceptée"
+      | "en_cours"
+      | "terminée"
+      | "complete"
+      | "en_attente"
+      | "annulée"
+    > = [
+      "acceptée",
+      "en_cours",
+      "terminée",
+      "complete",
+      "en_attente",
+      "annulée",
+    ];
+    return statusOrder.filter((status) => statuses.includes(status));
+  };
+
+  // Get status label for display
+  const getStatusLabel = (status: string): string => {
+    const labels: { [key: string]: string } = {
+      en_attente: "En attente",
+      acceptée: "Acceptée",
+      en_cours: "En cours",
+      terminée: "Terminée",
+      complete: "Complète",
+      annulée: "Annulée",
+    };
+    return labels[status] || status;
+  };
 
   const fetchMissions = useCallback(async () => {
     setLoading(true);
@@ -134,23 +212,7 @@ export default function Missions() {
       const { data: toutesLesDemandesData, error: toutesDemandesError } =
         await supabase
           .from("demandes_etudes")
-          .select(
-            `
-          id,
-          nom_entreprise,
-          type_etude,
-          description_projet,
-          zone_geographique,
-          statut,
-          budget_estime,
-          delai_souhaite,
-          client_id,
-          created_at,
-          contact_nom,
-          contact_email,
-          contact_telephone
-        `
-          )
+          .select('*')
           .order("created_at", { ascending: false });
 
       if (toutesDemandesError) {
@@ -158,28 +220,48 @@ export default function Missions() {
         return;
       }
 
-      console.log("Toutes les demandes trouvées:", toutesLesDemandesData);
+      console.log("Missions - Toutes les demandes:", toutesLesDemandesData);
+      console.log("Missions - Statuts trouvés:", [
+        ...new Set(toutesLesDemandesData?.map((d) => d.statut) || []),
+      ]);
+      console.log(
+        "Missions - Complete missions:",
+        toutesLesDemandesData?.filter((d) => d.statut === "complete")
+      );
 
-      // Add missing columns with fallback values for current database
-      const demandesAvecColonnesManquantes = toutesLesDemandesData?.map(d => ({
-        ...d,
-        statut: d.statut as 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'annulée',
-        intervenant_id: null as string | null,
-        date_acceptation: null as string | null,
-        date_debut_mission: null as string | null,
-        date_fin_mission: null as string | null,
-        notes_terrain: null as string | null,
-        latitude: null as number | null,
-        longitude: null as number | null
-      })) || [];
+      // Map data with proper types
+      const demandesAvecColonnesManquantes: DemandeEtude[] = toutesLesDemandesData?.map(d => {
+        const item = d as Record<string, unknown>; // Type assertion to access all database columns
+        return {
+          ...item,
+          statut: item.statut as 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'complete' | 'annulée',
+          email_contact: item.contact_email || '',
+          telephone_contact: item.contact_telephone || '',
+          date_acceptation: item.date_acceptation || null,
+          date_debut_mission: item.date_debut_mission || null,
+          date_fin_mission: item.date_fin_mission || null,
+          intervenant_id: item.intervenant_id || null,
+          notes_terrain: item.notes_terrain || null,
+          latitude: item.latitude || null,
+          longitude: item.longitude || null,
+          rapport_url: item.rapport_url || null,
+          rapport_uploaded_at: item.rapport_uploaded_at || null,
+          secteur_activite: item.secteur_activite || null
+        } as DemandeEtude;
+      }) || [];
 
       // Séparer les demandes selon leur statut et assignation
       const demandesDisponibles = demandesAvecColonnesManquantes.filter(
         (d) => d.statut === "en_attente"
       );
 
+      // Show accepted, in-progress, completed, and complete studies as missions
       const mesMissions = demandesAvecColonnesManquantes.filter(
-        (d) => d.statut === 'acceptée' || d.statut === 'en_cours' || d.statut === 'terminée'
+        (d) =>
+          d.statut === "acceptée" ||
+          d.statut === "en_cours" ||
+          d.statut === "terminée" ||
+          d.statut === "complete"
       );
 
       const autresMissionsAssignees: DemandeEtude[] = [];
@@ -256,24 +338,25 @@ export default function Missions() {
 
       // Atomic update to prevent race conditions
       const { data: updatedStudy, error } = await supabase
-        .from('demandes_etudes')
-        .update({ 
-          statut: 'acceptée', 
+        .from("demandes_etudes")
+        .update({
+          statut: "acceptée",
           // Note: These columns don't exist yet, will be added when migration is applied
-          // intervenant_id: profile.id, 
-          // date_acceptation: new Date().toISOString() 
+          // intervenant_id: profile.id,
+          // date_acceptation: new Date().toISOString()
         })
-        .eq('id', studyId)
-        .eq('statut', 'en_attente')
+        .eq("id", studyId)
+        .eq("statut", "en_attente")
         // .is('intervenant_id', null) // Will be enabled after migration
         .select()
         .single();
 
       if (error) {
-        console.error('Erreur lors de l\'acceptation:', error);
+        console.error("Erreur lors de l'acceptation:", error);
         toast({
           title: "Erreur",
-          description: "Cette étude a peut-être déjà été prise par un autre intervenant.",
+          description:
+            "Cette étude a peut-être déjà été prise par un autre intervenant.",
           variant: "destructive",
         });
         return;
@@ -287,7 +370,7 @@ export default function Missions() {
         fetchMissions(); // Refresh data
       }
     } catch (error) {
-      console.error('Erreur:', error);
+      console.error("Erreur:", error);
       toast({
         title: "Erreur",
         description: "Une erreur est survenue lors de l'acceptation.",
@@ -300,16 +383,16 @@ export default function Missions() {
   const handleStartMission = async (missionId: string) => {
     try {
       const { error } = await supabase
-        .from('demandes_etudes')
-        .update({ 
-          statut: 'en_cours',
+        .from("demandes_etudes")
+        .update({
+          statut: "en_cours",
           // date_debut_mission: new Date().toISOString() // Will be enabled after migration
         })
-        .eq('id', missionId)
-        .eq('statut', 'acceptée');
+        .eq("id", missionId)
+        .eq("statut", "acceptée");
 
       if (error) {
-        console.error('Erreur démarrage mission:', error);
+        console.error("Erreur démarrage mission:", error);
         toast({
           title: "Erreur",
           description: "Impossible de démarrer la mission.",
@@ -324,7 +407,7 @@ export default function Missions() {
       });
       fetchMissions();
     } catch (error) {
-      console.error('Erreur:', error);
+      console.error("Erreur:", error);
     }
   };
 
@@ -332,16 +415,16 @@ export default function Missions() {
   const handleCompleteMission = async (missionId: string) => {
     try {
       const { error } = await supabase
-        .from('demandes_etudes')
-        .update({ 
-          statut: 'terminée',
+        .from("demandes_etudes")
+        .update({
+          statut: "terminée",
           // date_fin_mission: new Date().toISOString() // Will be enabled after migration
         })
-        .eq('id', missionId)
-        .eq('statut', 'en_cours');
+        .eq("id", missionId)
+        .eq("statut", "en_cours");
 
       if (error) {
-        console.error('Erreur fin mission:', error);
+        console.error("Erreur fin mission:", error);
         toast({
           title: "Erreur",
           description: "Impossible de terminer la mission.",
@@ -352,11 +435,101 @@ export default function Missions() {
 
       toast({
         title: "Mission terminée !",
-        description: "La mission a été marquée comme terminée. Vous pouvez maintenant rédiger le rapport.",
+        description:
+          "La mission a été marquée comme terminée. Vous pouvez maintenant rédiger le rapport.",
       });
       fetchMissions();
     } catch (error) {
-      console.error('Erreur:', error);
+      console.error("Erreur:", error);
+    }
+  };
+
+  const handleUploadReport = async () => {
+    if (!reportFile || !selectedReportMission || !user) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner un fichier PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file type
+    if (reportFile.type !== "application/pdf") {
+      toast({
+        title: "Format invalide",
+        description: "Seuls les fichiers PDF sont acceptés.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (reportFile.size > 10 * 1024 * 1024) {
+      toast({
+        title: "Fichier trop volumineux",
+        description: "La taille du fichier ne doit pas dépasser 10MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingReport(true);
+
+    try {
+      // Create unique filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const fileName = `rapport_${selectedReportMission.id}_${timestamp}.pdf`;
+      const filePath = `reports/${user.id}/${fileName}`;
+
+      // Upload file to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("mission-reports")
+        .upload(filePath, reportFile);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("mission-reports")
+        .getPublicUrl(filePath);
+
+      // Update the demande_etudes record with report URL and set status to complete
+      const { error: updateError } = await supabase
+        .from("demandes_etudes")
+        .update({
+          rapport_url: urlData.publicUrl,
+          rapport_uploaded_at: new Date().toISOString(),
+          statut: "complete",
+        } as { rapport_url: string; rapport_uploaded_at: string; statut: string })
+        .eq("id", selectedReportMission.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      toast({
+        title: "Rapport téléchargé !",
+        description: "Le rapport PDF a été téléchargé avec succès.",
+      });
+
+      // Reset state and close dialog
+      setReportFile(null);
+      setSelectedReportMission(null);
+      setIsReportDialogOpen(false);
+      fetchMissions();
+    } catch (error) {
+      console.error("Erreur upload:", error);
+      toast({
+        title: "Erreur de téléchargement",
+        description:
+          "Impossible de télécharger le rapport. Veuillez réessayer.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingReport(false);
     }
   };
 
@@ -507,15 +680,21 @@ export default function Missions() {
         variant: "default" as const,
         icon: CheckCircle,
       },
-      en_cours: { 
-        label: "En cours", 
-        variant: "default" as const, 
-        icon: Clock 
+      en_cours: {
+        label: "En cours",
+        variant: "default" as const,
+        icon: Clock,
       },
       terminée: {
         label: "Terminée",
         variant: "default" as const,
         icon: CheckCircle,
+      },
+      complete: {
+        label: "Complète",
+        variant: "default" as const,
+        icon: FileText,
+        className: "bg-green-100 text-green-800 border-green-200",
       },
       annulée: {
         label: "Annulée",
@@ -568,9 +747,13 @@ export default function Missions() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl">Études Disponibles</CardTitle>
+                <CardTitle className="text-xl flex items-center">
+                  <Filter className="w-5 h-5 mr-2" />
+                  Études Disponibles
+                </CardTitle>
                 <CardDescription>
-                  Études non assignées - Cliquez "Accepter" pour les prendre en charge
+                  Études non assignées organisées par type - Cliquez "Accepter"
+                  pour les prendre en charge
                 </CardDescription>
               </div>
               <Badge variant="secondary" className="text-lg px-3 py-1">
@@ -584,67 +767,106 @@ export default function Missions() {
                 <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                   <CheckCircle className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune étude disponible</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Aucune étude disponible
+                </h3>
                 <p className="text-gray-500">
-                  Toutes les études ont été assignées ou sont en cours de traitement
+                  Toutes les études ont été assignées ou sont en cours de
+                  traitement
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {availableDemandes.map((demande) => (
-                  <div
-                    key={demande.id}
-                    className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                  >
-                    <div className="space-y-3">
-                      <div>
-                        <h3 className="font-semibold text-gray-900 text-lg">
-                          {demande.nom_entreprise}
-                        </h3>
-                        <p className="text-sm text-blue-600 font-medium">
-                          {demande.type_etude}
-                        </p>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm text-gray-600">
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                          <span>{demande.zone_geographique}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Clock className="w-4 h-4 mr-2 text-gray-400" />
-                          <span>Créé le {new Date(demande.created_at).toLocaleDateString('fr-FR')}</span>
-                        </div>
-                      </div>
+              <Tabs defaultValue="en_attente" className="w-full">
+                <TabsList className="flex flex-wrap justify-start gap-1 h-auto p-1 mb-6 bg-muted">
+                  {getStatusCategories(availableDemandes).map((status) => (
+                    <TabsTrigger
+                      key={status}
+                      value={status}
+                      className="flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap"
+                    >
+                      <span>{getStatusLabel(status)}</span>
+                      <Badge
+                        variant="secondary"
+                        className="text-xs px-1.5 py-0.5"
+                      >
+                        {categorizeStudiesByStatus(availableDemandes)[status]
+                          ?.length || 0}
+                      </Badge>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
 
-                      {demande.description_projet && (
-                        <p className="text-sm text-gray-600 line-clamp-2">
-                          {demande.description_projet}
-                        </p>
-                      )}
+                {getStatusCategories(availableDemandes).map((status) => (
+                  <TabsContent key={status} value={status}>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {categorizeStudiesByStatus(availableDemandes)[
+                        status
+                      ]?.map((demande) => (
+                        <div
+                          key={demande.id}
+                          className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                        >
+                          <div className="space-y-3">
+                            <div>
+                              <h3 className="font-semibold text-gray-900 text-lg">
+                                {demande.nom_entreprise}
+                              </h3>
+                              <p className="text-sm text-blue-600 font-medium">
+                                {demande.type_etude}
+                              </p>
+                            </div>
 
-                      <div className="flex space-x-2 pt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 text-blue-600 border-blue-200 hover:bg-blue-50"
-                        >
-                          <FileText className="w-4 h-4 mr-1" />
-                          Détails
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAcceptStudy(demande.id)}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Accepter
-                        </Button>
-                      </div>
+                            <div className="space-y-2 text-sm text-gray-600">
+                              <div className="flex items-center">
+                                <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                                <span>{demande.zone_geographique}</span>
+                              </div>
+                              <div className="flex items-center">
+                                <Clock className="w-4 h-4 mr-2 text-gray-400" />
+                                <span>
+                                  Créé le{" "}
+                                  {new Date(
+                                    demande.created_at
+                                  ).toLocaleDateString("fr-FR")}
+                                </span>
+                              </div>
+                            </div>
+
+                            {demande.description_projet && (
+                              <p className="text-sm text-gray-600 line-clamp-2">
+                                {demande.description_projet}
+                              </p>
+                            )}
+
+                            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedStudy(demande);
+                                  setIsDetailDialogOpen(true);
+                                }}
+                                className="flex-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                              >
+                                <FileText className="w-4 h-4 mr-1" />
+                                Détails
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleAcceptStudy(demande.id)}
+                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Accepter
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  </TabsContent>
                 ))}
-              </div>
+              </Tabs>
             )}
           </CardContent>
         </Card>
@@ -655,9 +877,12 @@ export default function Missions() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-xl">Mes Missions</CardTitle>
+              <CardTitle className="text-xl flex items-center">
+                <Filter className="w-5 h-5 mr-2" />
+                Mes Missions
+              </CardTitle>
               <CardDescription>
-                Missions assignées et en cours de traitement
+                Missions assignées organisées par type et statut
               </CardDescription>
             </div>
             <Badge variant="default" className="text-lg px-3 py-1">
@@ -666,118 +891,582 @@ export default function Missions() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          {missions.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <MapPin className="w-12 h-12 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Aucune mission assignée
+              </h3>
+              <p className="text-gray-500 mb-4">
+                Acceptez des études disponibles pour commencer vos missions
+                terrain
+              </p>
+              {availableDemandes.length > 0 && (
+                <Button
+                  onClick={() => {
+                    const availableStudiesSection = document.querySelector(
+                      '[data-section="available-studies"]'
+                    );
+                    availableStudiesSection?.scrollIntoView({
+                      behavior: "smooth",
+                    });
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Voir les études disponibles
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Tabs
+              defaultValue={getStatusCategories(missions)[0] || "acceptée"}
+              className="w-full"
+            >
+              <TabsList className="flex flex-wrap justify-start gap-1 h-auto p-1 mb-6 bg-muted">
+                {getStatusCategories(missions).map((status) => (
+                  <TabsTrigger
+                    key={status}
+                    value={status}
+                    className="flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap"
+                  >
+                    <span>{getStatusLabel(status)}</span>
+                    <Badge
+                      variant="secondary"
+                      className="text-xs px-1.5 py-0.5"
+                    >
+                      {categorizeStudiesByStatus(missions)[status]?.length || 0}
+                    </Badge>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-            {missions.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                  <MapPin className="w-12 h-12 text-gray-400" />
+              {getStatusCategories(missions).map((status) => (
+                <TabsContent key={status} value={status}>
+                  <div className="space-y-4">
+                    {categorizeStudiesByStatus(missions)[status]?.map(
+                      (mission) => {
+                        const statusInfo = getStatusBadge(mission.statut);
+                        const StatusIcon = statusInfo.icon;
+
+                        return (
+                          <div
+                            key={mission.id}
+                            className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors ${
+                              mission.statut === "complete"
+                                ? "border-green-200 bg-gradient-to-r from-green-50 to-emerald-50"
+                                : ""
+                            }`}
+                          >
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-medium text-gray-900">
+                                  {mission.type_etude || "Mission"} -{" "}
+                                  {mission.nom_entreprise || "Sans nom"}
+                                </h4>
+                                <Badge
+                                  variant={statusInfo.variant}
+                                  className={`flex items-center ${
+                                    mission.statut === "complete"
+                                      ? "bg-green-100 text-green-800 border-green-200"
+                                      : ""
+                                  }`}
+                                >
+                                  <StatusIcon className="w-3 h-3 mr-1" />
+                                  {statusInfo.label}
+                                </Badge>
+                              </div>
+
+                              <div className="flex items-center text-sm text-gray-600 space-x-4">
+                                <span className="flex items-center">
+                                  <MapPin className="w-4 h-4 mr-1" />
+                                  {mission.zone_geographique ||
+                                    "Lieu non spécifié"}
+                                </span>
+                                <span className="flex items-center">
+                                  <Clock className="w-4 h-4 mr-1" />
+                                  Créé le{" "}
+                                  {new Date(
+                                    mission.created_at || Date.now()
+                                  ).toLocaleDateString("fr-FR")}
+                                </span>
+                              </div>
+
+                              {mission.description_projet && (
+                                <p className="text-sm text-gray-600 line-clamp-2">
+                                  {mission.description_projet}
+                                </p>
+                              )}
+
+                              {/* Enhanced info for complete missions */}
+                              {mission.statut === "complete" &&
+                                mission.rapport_url && (
+                                  <div className="flex items-center space-x-4 text-sm">
+                                    <div className="flex items-center text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                                      <FileText className="w-3 h-3 mr-1" />
+                                      <span className="font-medium">
+                                        Rapport disponible
+                                      </span>
+                                    </div>
+                                    {mission.rapport_uploaded_at && (
+                                      <span className="text-gray-500 text-xs">
+                                        Téléchargé le{" "}
+                                        {new Date(
+                                          mission.rapport_uploaded_at
+                                        ).toLocaleDateString("fr-FR", {
+                                          day: "2-digit",
+                                          month: "2-digit",
+                                          year: "numeric",
+                                        })}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+
+                            <div className="flex items-center space-x-2 ml-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedStudy(mission);
+                                  setIsDetailDialogOpen(true);
+                                }}
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                              >
+                                <FileText className="w-4 h-4 mr-1" />
+                                Détails
+                              </Button>
+
+                              {mission.statut === "acceptée" && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleStartMission(mission.id)}
+                                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                                >
+                                  <Navigation className="w-4 h-4 mr-1" />
+                                  Commencer
+                                </Button>
+                              )}
+
+                              {mission.statut === "en_cours" && (
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    handleCompleteMission(mission.id)
+                                  }
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Terminer
+                                </Button>
+                              )}
+
+                              {mission.statut === "terminée" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    if (mission.rapport_url) {
+                                      // If report exists, open it in new tab
+                                      window.open(
+                                        mission.rapport_url,
+                                        "_blank"
+                                      );
+                                    } else {
+                                      // If no report, open upload dialog
+                                      setSelectedReportMission(mission);
+                                      setIsReportDialogOpen(true);
+                                    }
+                                  }}
+                                  className={
+                                    mission.rapport_url
+                                      ? "text-green-600 border-green-200 hover:bg-green-50"
+                                      : "text-blue-600 border-blue-200 hover:bg-blue-50"
+                                  }
+                                >
+                                  <FileText className="w-4 h-4 mr-1" />
+                                  {mission.rapport_url
+                                    ? "Voir rapport"
+                                    : "Rapport"}
+                                </Button>
+                              )}
+
+                              {mission.statut === "complete" && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedStudy(mission);
+                                    setIsDetailDialogOpen(true);
+                                  }}
+                                  className="bg-green-600 hover:bg-green-700 text-white shadow-md"
+                                >
+                                  <FileText className="w-4 h-4 mr-1" />
+                                  Voir rapport
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Detailed Study Dialog */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              Détails de l'étude
+            </DialogTitle>
+            <DialogDescription>
+              Informations complètes sur la demande d'étude
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedStudy && (
+            <div className="space-y-6">
+              {/* Company Information */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-lg mb-3 text-gray-900">
+                  Informations de l'entreprise
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">
+                      Nom de l'entreprise
+                    </label>
+                    <p className="text-gray-900 font-medium">
+                      {selectedStudy.nom_entreprise}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">
+                      Secteur d'activité
+                    </label>
+                    <p className="text-gray-900">
+                      {selectedStudy.secteur_activite || "Non spécifié"}
+                    </p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune mission assignée</h3>
-                <p className="text-gray-500 mb-4">
-                  Acceptez des études disponibles pour commencer vos missions terrain
-                </p>
-                {availableDemandes.length > 0 && (
+              </div>
+
+              {/* Study Information */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-lg mb-3 text-gray-900">
+                  Détails de l'étude
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">
+                      Type d'étude
+                    </label>
+                    <p className="text-gray-900 font-medium">
+                      {selectedStudy.type_etude}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">
+                      Zone géographique
+                    </label>
+                    <p className="text-gray-900 flex items-center">
+                      <MapPin className="w-4 h-4 mr-1 text-gray-500" />
+                      {selectedStudy.zone_geographique}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">
+                      Description du projet
+                    </label>
+                    <p className="text-gray-900 leading-relaxed">
+                      {selectedStudy.description_projet}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Project Details */}
+              <div className="bg-green-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-lg mb-3 text-gray-900">
+                  Détails du projet
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {selectedStudy.budget_estime && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">
+                        Budget estimé
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedStudy.budget_estime}
+                      </p>
+                    </div>
+                  )}
+                  {selectedStudy.delai_souhaite && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">
+                        Délai souhaité
+                      </label>
+                      <p className="text-gray-900 flex items-center">
+                        <Clock className="w-4 h-4 mr-1 text-gray-500" />
+                        {selectedStudy.delai_souhaite}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="bg-yellow-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-lg mb-3 text-gray-900">
+                  Informations de contact
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">
+                      Nom du contact
+                    </label>
+                    <p className="text-gray-900 font-medium">
+                      {selectedStudy.contact_nom}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">
+                      Email
+                    </label>
+                    <p className="text-gray-900">
+                      {selectedStudy.contact_email}
+                    </p>
+                  </div>
+                  {selectedStudy.contact_telephone && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">
+                        Téléphone
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedStudy.contact_telephone}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Status and Dates */}
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-lg mb-3 text-gray-900">
+                  Statut et dates
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">
+                      Statut
+                    </label>
+                    <div className="flex items-center mt-1">
+                      <Badge
+                        variant={
+                          selectedStudy.statut === "en_attente"
+                            ? "secondary"
+                            : "default"
+                        }
+                        className="capitalize"
+                      >
+                        {selectedStudy.statut.replace("_", " ")}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">
+                      Date de création
+                    </label>
+                    <p className="text-gray-900">
+                      {new Date(selectedStudy.created_at).toLocaleDateString(
+                        "fr-FR",
+                        {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Report Section - Show for complete missions */}
+              {selectedStudy.statut === "complete" && (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <h3 className="font-semibold text-lg mb-3 text-gray-900 flex items-center">
+                    <FileText className="w-5 h-5 mr-2 text-green-600" />
+                    Rapport PDF
+                  </h3>
+                  <div className="space-y-3">
+                    {selectedStudy.rapport_url ? (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">
+                            Rapport téléchargé
+                          </p>
+                          {selectedStudy.rapport_uploaded_at && (
+                            <p className="text-xs text-gray-500">
+                              Le{" "}
+                              {new Date(
+                                selectedStudy.rapport_uploaded_at
+                              ).toLocaleDateString("fr-FR", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          onClick={() =>
+                            window.open(selectedStudy.rapport_url!, "_blank")
+                          }
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          size="sm"
+                        >
+                          <FileText className="w-4 h-4 mr-1" />
+                          Ouvrir le rapport
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-sm text-gray-600 mb-2">
+                          Mission terminée - Rapport en cours de traitement
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Le rapport PDF sera disponible prochainement
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDetailDialogOpen(false)}
+                >
+                  Fermer
+                </Button>
+                {selectedStudy.statut === "en_attente" && (
                   <Button
                     onClick={() => {
-                      const availableStudiesSection = document.querySelector('[data-section="available-studies"]');
-                      availableStudiesSection?.scrollIntoView({ behavior: 'smooth' });
+                      handleAcceptStudy(selectedStudy.id);
+                      setIsDetailDialogOpen(false);
                     }}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-green-600 hover:bg-green-700 text-white"
                   >
-                    Voir les études disponibles
+                    <CheckSquare className="w-4 h-4 mr-2" />
+                    Accepter cette étude
                   </Button>
                 )}
               </div>
-            ) : (
-              missions.map((mission) => {
-                const status = getStatusBadge(mission.statut);
-                const StatusIcon = status.icon;
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              Télécharger le rapport
+            </DialogTitle>
+            <DialogDescription>
+              Sélectionnez le fichier PDF du rapport de mission
+            </DialogDescription>
+          </DialogHeader>
 
-                return (
-                  <div
-                    key={mission.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium text-gray-900">
-                          {mission.type_etude || 'Mission'} - {mission.nom_entreprise || 'Sans nom'}
-                        </h4>
-                        <Badge variant={status.variant} className="flex items-center">
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {status.label}
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex items-center text-sm text-gray-600 space-x-4">
-                        <span className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-1" />
-                          {mission.zone_geographique || 'Lieu non spécifié'}
-                        </span>
-                        <span className="flex items-center">
-                          <Clock className="w-4 h-4 mr-1" />
-                          Créé le {new Date(mission.created_at || Date.now()).toLocaleDateString('fr-FR')}
-                        </span>
-                      </div>
+          {selectedReportMission && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-md">
+                <h4 className="font-medium text-gray-900">
+                  {selectedReportMission.nom_entreprise}
+                </h4>
+                <p className="text-sm text-gray-600">
+                  {selectedReportMission.type_etude}
+                </p>
+                <p className="text-sm text-gray-500 flex items-center mt-1">
+                  <MapPin className="w-4 h-4 mr-1" />
+                  {selectedReportMission.zone_geographique}
+                </p>
+              </div>
 
-                      {mission.description_projet && (
-                        <p className="text-sm text-gray-600 line-clamp-2">
-                          {mission.description_projet}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center space-x-2 ml-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                      >
-                        <FileText className="w-4 h-4 mr-1" />
-                        Détails
-                      </Button>
-                      
-                      {mission.statut === 'acceptée' && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleStartMission(mission.id)}
-                          className="bg-orange-600 hover:bg-orange-700 text-white"
-                        >
-                          <Navigation className="w-4 h-4 mr-1" />
-                          Commencer
-                        </Button>
-                      )}
-                      
-                      {mission.statut === 'en_cours' && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleCompleteMission(mission.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Terminer
-                        </Button>
-                      )}
-                      
-                      {mission.statut === 'terminée' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                        >
-                          <FileText className="w-4 h-4 mr-1" />
-                          Rapport
-                        </Button>
-                      )}
-                    </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Fichier PDF du rapport
+                </label>
+                <Input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setReportFile(file);
+                    }
+                  }}
+                  className="cursor-pointer"
+                />
+                {reportFile && (
+                  <div className="flex items-center text-sm text-green-600">
+                    <FileText className="w-4 h-4 mr-1" />
+                    {reportFile.name} (
+                    {(reportFile.size / 1024 / 1024).toFixed(2)} MB)
                   </div>
-                );
-              })
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                )}
+              </div>
+
+              <div className="text-xs text-gray-500">
+                • Format accepté: PDF uniquement
+                <br />• Taille maximale: 10 MB
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsReportDialogOpen(false);
+                setReportFile(null);
+                setSelectedReportMission(null);
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleUploadReport}
+              disabled={!reportFile || isUploadingReport}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isUploadingReport ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Téléchargement...
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Télécharger
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

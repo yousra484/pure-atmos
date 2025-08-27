@@ -18,11 +18,24 @@ interface Mission {
   statut: string;
   date_fin: string;
   description: string;
+  rapport_url?: string;
+  rapport_uploaded_at?: string;
   commande?: {
     titre: string;
     type_etude: string;
     client_id: string;
   };
+}
+
+interface DemandeEtude {
+  id: string;
+  nom_entreprise: string;
+  type_etude: string;
+  description_projet: string;
+  statut: 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'complete' | 'annulée';
+  rapport_url: string | null;
+  rapport_uploaded_at: string | null;
+  created_at: string;
 }
 
 interface Report {
@@ -40,6 +53,8 @@ export default function Reports() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [missions, setMissions] = useState<Mission[]>([]);
+  const [completeStudies, setCompleteStudies] = useState<DemandeEtude[]>([]);
+  const [selectedStudy, setSelectedStudy] = useState<DemandeEtude | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
@@ -80,7 +95,25 @@ export default function Reports() {
         .eq('statut', 'termine')
         .order('date_fin', { ascending: false });
 
+      // Fetch complete studies from demandes_etudes (all complete studies that this intervenant can see)
+      const { data: allCompleteStudiesData, error: completeStudiesError } = await supabase
+        .from('demandes_etudes')
+        .select('*')
+        .eq('statut', 'complete')
+        .order('created_at', { ascending: false });
+
+      // Filter complete studies that this intervenant has worked on
+      const completeStudiesData = allCompleteStudiesData?.filter(study => 
+        study.intervenant_id === profile.id
+      ) || [];
+
+      console.log('Reports - Profile ID:', profile.id);
+      console.log('Reports - All complete studies:', allCompleteStudiesData);
+      console.log('Reports - Filtered complete studies:', completeStudiesData);
+      console.log('Reports - Complete studies error:', completeStudiesError);
+
       if (missionsError) throw missionsError;
+      if (completeStudiesError) throw completeStudiesError;
 
       // Fetch existing reports
       const missionIds = missionsData?.map(m => m.id) || [];
@@ -93,6 +126,7 @@ export default function Reports() {
       if (reportsError) throw reportsError;
 
       setMissions(missionsData || []);
+      setCompleteStudies(completeStudiesData || []);
       setReports(reportsData || []);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -208,6 +242,110 @@ export default function Reports() {
           Soumettez vos rapports préliminaires aux clients
         </p>
       </div>
+
+      {/* Complete Studies with PDF Reports */}
+      {completeStudies.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Études Complètes</CardTitle>
+            <CardDescription>
+              Études terminées avec rapports PDF disponibles
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {completeStudies.map((study) => (
+                <div key={study.id} className="flex items-center justify-between p-4 border rounded-lg bg-green-50">
+                  <div className="space-y-1">
+                    <h4 className="font-medium">{study.nom_entreprise}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Type: {study.type_etude}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Complétée le: {new Date(study.created_at).toLocaleDateString('fr-FR')}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="default" className="bg-green-600">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Complète
+                    </Badge>
+                    {study.rapport_url && (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setSelectedStudy(study)}
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            Voir rapport
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl max-h-[80vh]">
+                          <DialogHeader>
+                            <DialogTitle>Rapport PDF - {study.nom_entreprise}</DialogTitle>
+                            <DialogDescription>
+                              Étude: {study.type_etude} • Complétée le {study.rapport_uploaded_at ? new Date(study.rapport_uploaded_at).toLocaleDateString('fr-FR') : 'Date inconnue'}
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm font-medium text-gray-600">
+                                  Entreprise
+                                </label>
+                                <p className="text-gray-900">{study.nom_entreprise}</p>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium text-gray-600">
+                                  Type d'étude
+                                </label>
+                                <p className="text-gray-900">{study.type_etude}</p>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium text-gray-600">
+                                Description
+                              </label>
+                              <p className="text-gray-900">{study.description_projet}</p>
+                            </div>
+                            {study.rapport_url && (
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-600">
+                                  Rapport PDF
+                                </label>
+                                <div className="border rounded-lg p-4 bg-gray-50">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                      <FileText className="w-5 h-5 text-blue-600" />
+                                      <span className="text-sm font-medium">Rapport_Final.pdf</span>
+                                    </div>
+                                    <Button 
+                                      onClick={() => window.open(study.rapport_url, '_blank')}
+                                      size="sm"
+                                    >
+                                      <Eye className="w-4 h-4 mr-1" />
+                                      Ouvrir PDF
+                                    </Button>
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Uploadé le {study.rapport_uploaded_at ? new Date(study.rapport_uploaded_at).toLocaleDateString('fr-FR') : 'Date inconnue'}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Missions Ready for Reports */}
       <Card>

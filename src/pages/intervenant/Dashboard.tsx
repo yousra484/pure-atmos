@@ -48,7 +48,7 @@ interface DemandeEtude {
   contact_nom: string;
   contact_email: string;
   contact_telephone: string | null;
-  statut: 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'annulée';
+  statut: "en_attente" | "acceptée" | "en_cours" | "terminée" | "complete" | "annulée";
   created_at: string;
   updated_at: string;
   intervenant_id: string | null;
@@ -58,6 +58,8 @@ interface DemandeEtude {
   notes_terrain: string | null;
   latitude: number | null;
   longitude: number | null;
+  rapport_url?: string | null;
+  rapport_uploaded_at?: string | null;
 }
 
 interface Mission extends DemandeEtude {
@@ -86,7 +88,9 @@ export default function IntervenantDashboard() {
     pendingReports: 0,
     availableStudies: 0,
   });
-  const [availableDemandes, setAvailableDemandes] = useState<DemandeEtude[]>([]);
+  const [availableDemandes, setAvailableDemandes] = useState<DemandeEtude[]>(
+    []
+  );
   const [loading, setLoading] = useState(true);
   const [selectedStudy, setSelectedStudy] = useState<DemandeEtude | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
@@ -148,7 +152,9 @@ export default function IntervenantDashboard() {
           statut,
           client_id,
           created_at,
-          updated_at
+          updated_at,
+          rapport_url,
+          rapport_uploaded_at
         `
           )
           .order("created_at", { ascending: false });
@@ -158,43 +164,56 @@ export default function IntervenantDashboard() {
         return;
       }
 
-      console.log("Dashboard - Toutes les demandes:", toutesLesDemandesData);
+     
 
-      // For now, show all available studies since intervenant_id column doesn't exist yet
-      const demandesDisponibles = toutesLesDemandesData?.filter(
+      // Add missing columns with fallback values for current database
+      const demandesAvecColonnesManquantes =
+        toutesLesDemandesData?.map((d) => ({
+          ...d,
+          statut: d.statut as
+            | "en_attente"
+            | "acceptée"
+            | "en_cours"
+            | "terminée"
+            | "complete"
+            | "annulée",
+          intervenant_id: null as string | null,
+          date_acceptation: null as string | null,
+          date_debut_mission: null as string | null,
+          date_fin_mission: null as string | null,
+          notes_terrain: null as string | null,
+          latitude: null as number | null,
+          longitude: null as number | null,
+        })) || [];
+
+      // Separate studies by status
+      // Only show studies that are truly available (en_attente status only)
+      const demandesDisponibles = demandesAvecColonnesManquantes.filter(
         (d) => d.statut === "en_attente"
-      ).map(d => ({
-        ...d,
-        statut: d.statut as 'en_attente' | 'acceptée' | 'en_cours' | 'terminée' | 'annulée',
-        intervenant_id: null as string | null,
-        date_acceptation: null as string | null,
-        date_debut_mission: null as string | null,
-        date_fin_mission: null as string | null,
-        notes_terrain: null as string | null,
-        latitude: null as number | null,
-        longitude: null as number | null
-      })) || [];
+      );
 
-      // No missions assigned yet since intervenant_id column doesn't exist
-      const mesMissions: DemandeEtude[] = [];
+      // Show accepted, in-progress, completed, and complete studies as missions
+      const mesMissions = demandesAvecColonnesManquantes.filter(
+        (d) => d.statut === "acceptée" || d.statut === "en_cours" || d.statut === "terminée" || d.statut === "complete"
+      );
       const autresMissions: DemandeEtude[] = [];
 
-      // Set all data
-      setAvailableDemandes(demandesDisponibles);
-      
+      // Set available studies (only en_attente) and missions separately
+      setAvailableDemandes([...demandesDisponibles, ...mesMissions]);
+
       // Transform mesMissions to match Mission interface
       const transformedMissions: Mission[] = mesMissions.map((mission) => ({
         ...mission,
         demande_etude_id: mission.id,
-        date_debut: mission.date_debut_mission || '',
-        date_fin: mission.date_fin_mission || '',
+        date_debut: mission.date_debut_mission || "",
+        date_fin: mission.date_fin_mission || "",
         intervenant_id: null,
         date_acceptation: null,
         date_debut_mission: null,
         date_fin_mission: null,
         notes_terrain: null,
         latitude: null,
-        longitude: null
+        longitude: null,
       }));
       setMissions(transformedMissions);
 
@@ -202,21 +221,24 @@ export default function IntervenantDashboard() {
       // Since intervenant_id doesn't exist yet, we'll show general statistics
       const totalStudies = toutesLesDemandesData?.length || 0;
       const availableStudiesCount = demandesDisponibles.length;
-      const acceptedStudies = toutesLesDemandesData?.filter(
-        (d) => d.statut === "acceptée"
-      ).length || 0;
-      const activeStudies = toutesLesDemandesData?.filter(
-        (d) => d.statut === "en_cours"
-      ).length || 0;
-      const completedStudies = toutesLesDemandesData?.filter(
-        (d) => d.statut === "terminée"
-      ).length || 0;
+      const acceptedStudies =
+        toutesLesDemandesData?.filter((d) => d.statut === "acceptée").length ||
+        0;
+      const activeStudies =
+        toutesLesDemandesData?.filter((d) => d.statut === "en_cours").length ||
+        0;
+      const completedStudies =
+        toutesLesDemandesData?.filter((d) => d.statut === "terminée").length ||
+        0;
+      const completeStudies =
+        toutesLesDemandesData?.filter((d) => d.statut === "complete").length ||
+        0;
 
       setStats({
-        totalMissions: acceptedStudies + activeStudies + completedStudies,
+        totalMissions: acceptedStudies + activeStudies + completedStudies + completeStudies,
         activeMissions: activeStudies,
-        completedMissions: completedStudies,
-        pendingReports: completedStudies, // Assuming completed studies need reports
+        completedMissions: completedStudies + completeStudies,
+        pendingReports: completedStudies, // Only terminée studies need reports, complete ones already have them
         availableStudies: availableStudiesCount,
       });
     } catch (error) {
@@ -325,7 +347,8 @@ export default function IntervenantDashboard() {
           // No rows updated - study was already taken
           toast({
             title: "Étude déjà prise",
-            description: "Cette étude a déjà été acceptée par un autre intervenant.",
+            description:
+              "Cette étude a déjà été acceptée par un autre intervenant.",
             variant: "destructive",
           });
         } else {
@@ -337,7 +360,8 @@ export default function IntervenantDashboard() {
       if (!updatedStudy) {
         toast({
           title: "Étude déjà prise",
-          description: "Cette étude a déjà été acceptée par un autre intervenant.",
+          description:
+            "Cette étude a déjà été acceptée par un autre intervenant.",
           variant: "destructive",
         });
         return;
@@ -372,6 +396,11 @@ export default function IntervenantDashboard() {
         label: "Terminée",
         variant: "default" as const,
         icon: CheckCircle,
+      },
+      complete: {
+        label: "Complète",
+        variant: "default" as const,
+        icon: FileText,
       },
       annulée: {
         label: "Annulée",
@@ -451,9 +480,7 @@ export default function IntervenantDashboard() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Études
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Études</CardTitle>
             <MapPin className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -473,7 +500,9 @@ export default function IntervenantDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.activeMissions}</div>
-            <p className="text-xs text-muted-foreground">En cours d'exécution</p>
+            <p className="text-xs text-muted-foreground">
+              En cours d'exécution
+            </p>
           </CardContent>
         </Card>
 
@@ -511,7 +540,9 @@ export default function IntervenantDashboard() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Gestion des Missions</CardTitle>
-            <CardDescription>Toutes vos missions - gérez-les directement depuis ici</CardDescription>
+            <CardDescription>
+              Vos dernières missions - triées par date
+            </CardDescription>
           </div>
           <Button
             variant="outline"
@@ -519,30 +550,42 @@ export default function IntervenantDashboard() {
             className="flex items-center"
           >
             <Eye className="w-4 h-4 mr-2" />
-            Voir tout
+            Voir les études disponibles
           </Button>
         </CardHeader>
         <CardContent>
           {/* Show accepted, active, and completed studies as missions */}
           {(() => {
-            const allMissions = availableDemandes.filter(d => 
-              d.statut === 'acceptée' || d.statut === 'en_cours' || d.statut === 'terminée'
-            );
-            
+            // Show latest missions sorted by date (most recent first)
+            const allMissions = availableDemandes
+              .filter(
+                (d) =>
+                  d.statut === "acceptée" ||
+                  d.statut === "en_cours" ||
+                  d.statut === "terminée" ||
+                  d.statut === "complete"
+              )
+              .sort(
+                (a, b) =>
+                  new Date(b.created_at).getTime() -
+                  new Date(a.created_at).getTime()
+              )
+              .slice(0, 5); // Show only the 5 most recent missions
+
             return allMissions.length === 0 ? (
               <div className="text-center py-12">
                 <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                   <MapPin className="w-12 h-12 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune mission assignée</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Aucune mission assignée
+                </h3>
                 <p className="text-gray-500 mb-4">
-                  Acceptez des études disponibles pour commencer vos missions terrain
+                  Acceptez des études disponibles pour commencer vos missions
+                  terrain
                 </p>
                 <Button
-                  onClick={() => {
-                    const availableStudiesSection = document.getElementById('available-studies');
-                    availableStudiesSection?.scrollIntoView({ behavior: 'smooth' });
-                  }}
+                  onClick={() => navigate("/intervenant/missions")}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   Voir les études disponibles
@@ -564,12 +607,15 @@ export default function IntervenantDashboard() {
                           <h4 className="font-medium text-gray-900">
                             {mission.type_etude} - {mission.nom_entreprise}
                           </h4>
-                          <Badge variant={status.variant} className="flex items-center">
+                          <Badge
+                            variant={status.variant}
+                            className="flex items-center"
+                          >
                             <StatusIcon className="w-3 h-3 mr-1" />
                             {status.label}
                           </Badge>
                         </div>
-                        
+
                         <div className="flex items-center text-sm text-gray-600 space-x-4">
                           <span className="flex items-center">
                             <MapPin className="w-4 h-4 mr-1" />
@@ -577,7 +623,10 @@ export default function IntervenantDashboard() {
                           </span>
                           <span className="flex items-center">
                             <Clock className="w-4 h-4 mr-1" />
-                            Créé le {new Date(mission.created_at).toLocaleDateString('fr-FR')}
+                            Créé le{" "}
+                            {new Date(mission.created_at).toLocaleDateString(
+                              "fr-FR"
+                            )}
                           </span>
                         </div>
 
@@ -587,7 +636,7 @@ export default function IntervenantDashboard() {
                           </p>
                         )}
                       </div>
-                      
+
                       <div className="flex items-center space-x-2 ml-4">
                         <Button
                           variant="outline"
@@ -598,8 +647,8 @@ export default function IntervenantDashboard() {
                           <Eye className="w-4 h-4 mr-1" />
                           Détails
                         </Button>
-                        
-                        {mission.statut === 'acceptée' && (
+
+                        {mission.statut === "acceptée" && (
                           <Button
                             size="sm"
                             onClick={() => handleStartMission(mission.id)}
@@ -609,8 +658,8 @@ export default function IntervenantDashboard() {
                             Commencer
                           </Button>
                         )}
-                        
-                        {mission.statut === 'en_cours' && (
+
+                        {mission.statut === "en_cours" && (
                           <Button
                             size="sm"
                             onClick={() => handleCompleteMission(mission.id)}
@@ -620,32 +669,62 @@ export default function IntervenantDashboard() {
                             Terminer
                           </Button>
                         )}
-                        
-                        {mission.statut === 'terminée' && (
+
+                        {mission.statut === "terminée" && (
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => navigate(`/intervenant/reports/${mission.id}`)}
+                            onClick={() =>
+                              navigate(`/intervenant/reports/${mission.id}`)
+                            }
                             className="text-blue-600 border-blue-200 hover:bg-blue-50"
                           >
                             <FileText className="w-4 h-4 mr-1" />
                             Rapport
                           </Button>
                         )}
+
+                        {mission.statut === "complete" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewDetails(mission)}
+                            className="text-green-600 border-green-200 hover:bg-green-50"
+                          >
+                            <FileText className="w-4 h-4 mr-1" />
+                            Voir rapport
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
                 })}
-                
-                {allMissions.length > 0 && (
+
+                {availableDemandes.filter(
+                  (d) =>
+                    d.statut === "acceptée" ||
+                    d.statut === "en_cours" ||
+                    d.statut === "terminée" ||
+                    d.statut === "complete"
+                ).length > 5 && (
                   <div className="text-center pt-4 border-t">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => navigate('/intervenant/missions')}
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate("/intervenant/missions")}
                       className="flex items-center"
                     >
                       <MapPin className="w-4 h-4 mr-2" />
-                      Voir toutes les missions ({allMissions.length})
+                      Voir toutes les missions (
+                      {
+                        availableDemandes.filter(
+                          (d) =>
+                            d.statut === "acceptée" ||
+                            d.statut === "en_cours" ||
+                            d.statut === "terminée" ||
+                            d.statut === "complete"
+                        ).length
+                      }
+                      )
                     </Button>
                   </div>
                 )}
@@ -662,16 +741,17 @@ export default function IntervenantDashboard() {
             <div>
               <CardTitle>Études Disponibles</CardTitle>
               <CardDescription>
-                Toutes les études non assignées - Cliquez "Accepter" pour les prendre
+                Toutes les études non assignées - Cliquez "Accepter" pour les
+                prendre
               </CardDescription>
             </div>
             <Badge variant="secondary" className="text-lg px-3 py-1">
-              {availableDemandes.length} disponibles
+              {availableDemandes.filter((d) => d.statut === "en_attente").length} disponibles
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          {availableDemandes.length === 0 ? (
+          {availableDemandes.filter((d) => d.statut === "en_attente").length === 0 ? (
             <div className="text-center py-12">
               <CheckCircle className="w-16 h-16 mx-auto text-green-500 mb-4" />
               <p className="text-lg font-medium text-muted-foreground">
@@ -683,7 +763,9 @@ export default function IntervenantDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {availableDemandes.map((demande) => (
+              {availableDemandes
+                .filter((d) => d.statut === "en_attente")
+                .map((demande) => (
                 <div
                   key={demande.id}
                   className="flex items-center justify-between p-6 border rounded-lg hover:shadow-md transition-shadow bg-gradient-to-r from-blue-50 to-green-50"
@@ -691,13 +773,14 @@ export default function IntervenantDashboard() {
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-3">
                       <h4 className="font-semibold text-lg">
-                        {demande.type_etude || "Étude"} - {demande.nom_entreprise || "Sans nom"}
+                        {demande.type_etude || "Étude"} -{" "}
+                        {demande.nom_entreprise || "Sans nom"}
                       </h4>
                       <Badge variant="outline" className="bg-white">
                         {demande.statut}
                       </Badge>
                     </div>
-                    
+
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <div className="flex items-center">
                         <MapPin className="w-4 h-4 mr-1" />
@@ -705,17 +788,20 @@ export default function IntervenantDashboard() {
                       </div>
                       <div className="flex items-center">
                         <Calendar className="w-4 h-4 mr-1" />
-                        Créée le {new Date(demande.created_at).toLocaleDateString("fr-FR")}
+                        Créée le{" "}
+                        {new Date(demande.created_at).toLocaleDateString(
+                          "fr-FR"
+                        )}
                       </div>
                     </div>
-                    
+
                     {demande.description_projet && (
                       <p className="text-sm text-gray-600 mt-2 line-clamp-2">
                         {demande.description_projet}
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center space-x-3 ml-6">
                     <Button
                       variant="outline"
@@ -737,14 +823,14 @@ export default function IntervenantDashboard() {
                   </div>
                 </div>
               ))}
-              
-              {availableDemandes.length > 5 && (
+
+              {availableDemandes.filter((d) => d.statut === "en_attente").length > 5 && (
                 <div className="text-center pt-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => navigate('/intervenant/available-studies')}
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/intervenant/available-studies")}
                   >
-                    Voir toutes les études ({availableDemandes.length})
+                    Voir toutes les études ({availableDemandes.filter((d) => d.statut === "en_attente").length})
                   </Button>
                 </div>
               )}
@@ -889,7 +975,7 @@ export default function IntervenantDashboard() {
               Informations complètes sur la demande d'étude
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedStudy && (
             <div className="space-y-6">
               {/* Company Information */}
@@ -899,12 +985,20 @@ export default function IntervenantDashboard() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Nom de l'entreprise</label>
-                    <p className="text-gray-900 font-medium">{selectedStudy.nom_entreprise}</p>
+                    <label className="text-sm font-medium text-gray-600">
+                      Nom de l'entreprise
+                    </label>
+                    <p className="text-gray-900 font-medium">
+                      {selectedStudy.nom_entreprise}
+                    </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Secteur d'activité</label>
-                    <p className="text-gray-900">{selectedStudy.secteur_activite}</p>
+                    <label className="text-sm font-medium text-gray-600">
+                      Secteur d'activité
+                    </label>
+                    <p className="text-gray-900">
+                      {selectedStudy.secteur_activite}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -916,19 +1010,29 @@ export default function IntervenantDashboard() {
                 </h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Type d'étude</label>
-                    <p className="text-gray-900 font-medium">{selectedStudy.type_etude}</p>
+                    <label className="text-sm font-medium text-gray-600">
+                      Type d'étude
+                    </label>
+                    <p className="text-gray-900 font-medium">
+                      {selectedStudy.type_etude}
+                    </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Zone géographique</label>
+                    <label className="text-sm font-medium text-gray-600">
+                      Zone géographique
+                    </label>
                     <p className="text-gray-900 flex items-center">
                       <MapPin className="w-4 h-4 mr-1 text-gray-500" />
                       {selectedStudy.zone_geographique}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Description du projet</label>
-                    <p className="text-gray-900 leading-relaxed">{selectedStudy.description_projet}</p>
+                    <label className="text-sm font-medium text-gray-600">
+                      Description du projet
+                    </label>
+                    <p className="text-gray-900 leading-relaxed">
+                      {selectedStudy.description_projet}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -941,13 +1045,19 @@ export default function IntervenantDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedStudy.budget_estime && (
                     <div>
-                      <label className="text-sm font-medium text-gray-600">Budget estimé</label>
-                      <p className="text-gray-900">{selectedStudy.budget_estime}</p>
+                      <label className="text-sm font-medium text-gray-600">
+                        Budget estimé
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedStudy.budget_estime}
+                      </p>
                     </div>
                   )}
                   {selectedStudy.delai_souhaite && (
                     <div>
-                      <label className="text-sm font-medium text-gray-600">Délai souhaité</label>
+                      <label className="text-sm font-medium text-gray-600">
+                        Délai souhaité
+                      </label>
                       <p className="text-gray-900 flex items-center">
                         <Clock className="w-4 h-4 mr-1 text-gray-500" />
                         {selectedStudy.delai_souhaite}
@@ -964,17 +1074,29 @@ export default function IntervenantDashboard() {
                 </h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Nom du contact</label>
-                    <p className="text-gray-900 font-medium">{selectedStudy.contact_nom}</p>
+                    <label className="text-sm font-medium text-gray-600">
+                      Nom du contact
+                    </label>
+                    <p className="text-gray-900 font-medium">
+                      {selectedStudy.contact_nom}
+                    </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Email</label>
-                    <p className="text-gray-900">{selectedStudy.contact_email}</p>
+                    <label className="text-sm font-medium text-gray-600">
+                      Email
+                    </label>
+                    <p className="text-gray-900">
+                      {selectedStudy.contact_email}
+                    </p>
                   </div>
                   {selectedStudy.contact_telephone && (
                     <div>
-                      <label className="text-sm font-medium text-gray-600">Téléphone</label>
-                      <p className="text-gray-900">{selectedStudy.contact_telephone}</p>
+                      <label className="text-sm font-medium text-gray-600">
+                        Téléphone
+                      </label>
+                      <p className="text-gray-900">
+                        {selectedStudy.contact_telephone}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -987,30 +1109,77 @@ export default function IntervenantDashboard() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Statut</label>
+                    <label className="text-sm font-medium text-gray-600">
+                      Statut
+                    </label>
                     <div className="flex items-center mt-1">
-                      <Badge 
-                        variant={selectedStudy.statut === 'en_attente' ? 'secondary' : 'default'}
+                      <Badge
+                        variant={
+                          selectedStudy.statut === "en_attente"
+                            ? "secondary"
+                            : "default"
+                        }
                         className="capitalize"
                       >
-                        {selectedStudy.statut.replace('_', ' ')}
+                        {selectedStudy.statut.replace("_", " ")}
                       </Badge>
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Date de création</label>
+                    <label className="text-sm font-medium text-gray-600">
+                      Date de création
+                    </label>
                     <p className="text-gray-900">
-                      {new Date(selectedStudy.created_at).toLocaleDateString('fr-FR', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                      {new Date(selectedStudy.created_at).toLocaleDateString(
+                        "fr-FR",
+                        {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }
+                      )}
                     </p>
                   </div>
                 </div>
               </div>
+
+              {/* Report Section - Only show for complete missions */}
+              {selectedStudy.statut === "complete" && selectedStudy.rapport_url && (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <h3 className="font-semibold text-lg mb-3 text-gray-900 flex items-center">
+                    <FileText className="w-5 h-5 mr-2 text-green-600" />
+                    Rapport PDF
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600">Rapport téléchargé</p>
+                        {selectedStudy.rapport_uploaded_at && (
+                          <p className="text-xs text-gray-500">
+                            Le {new Date(selectedStudy.rapport_uploaded_at).toLocaleDateString("fr-FR", {
+                              year: "numeric",
+                              month: "long", 
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            })}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        onClick={() => window.open(selectedStudy.rapport_url!, '_blank')}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        size="sm"
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        Ouvrir le rapport
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-3 pt-4 border-t">
@@ -1020,7 +1189,7 @@ export default function IntervenantDashboard() {
                 >
                   Fermer
                 </Button>
-                {selectedStudy.statut === 'en_attente' && (
+                {selectedStudy.statut === "en_attente" && (
                   <Button
                     onClick={() => {
                       handleAcceptStudy(selectedStudy.id);
@@ -1039,4 +1208,4 @@ export default function IntervenantDashboard() {
       </Dialog>
     </div>
   );
-};
+}

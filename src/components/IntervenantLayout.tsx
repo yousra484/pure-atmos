@@ -177,17 +177,20 @@ export default function IntervenantLayout() {
             </SheetContent>
           </Sheet>
 
-          {/* Logo */}
-          <div className="flex items-center space-x-2">
-            <Link to="/intervenant/dashboard" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">PA</span>
-              </div>
-              <span className="font-bold text-lg hidden sm:inline-block">
-                Pure Atmos - Intervenant
-              </span>
-            </Link>
-          </div>
+         {/* Logo */}
+<div className="flex items-center space-x-2">
+  <Link to="/intervenant/dashboard" className="flex items-center space-x-2">
+    {/* Correct way to reference the image */}
+    <img
+      src="/logo.png"
+      alt="Pure Atmos Logo"
+      className="w-10 h-10 rounded-lg"
+    />
+    <span className="font-bold text-lg hidden sm:inline-block">
+      Pure Atmos - Intervenant
+    </span>
+  </Link>
+</div>
 
           <div className="flex flex-1 items-center justify-end space-x-4">
             {/* Desktop Navigation */}
