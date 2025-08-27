@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LanguageSelector } from './LanguageSelector';
@@ -12,18 +12,12 @@ import { supabase } from '@/integrations/supabase/client';
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<{ type_compte: string } | null>(null);
   const { user, logout } = useAuth();
   const { language, country, setLanguage, setCountry } = useAppContext();
   const t = translations[language as keyof typeof translations];
 
-  useEffect(() => {
-    if (user) {
-      fetchUserProfile();
-    }
-  }, [user]);
-
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       if (!user?.id) return;
 
@@ -42,14 +36,20 @@ export function Header() {
     } catch (error) {
       console.error('Error fetching user profile:', error);
     }
-  };
-  
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user, fetchUserProfile]);
+
   const handleLanguageChange = (newLanguage: string) => {
-    setLanguage(newLanguage as any);
+    setLanguage(newLanguage as 'fr' | 'en' | 'ar');
   };
-  
+
   const handleCountryChange = (newCountry: string) => {
-    setCountry(newCountry as any);
+    setCountry(newCountry as 'dz' | 'ma' | 'tn' | 'other');
   };
 
   return (
@@ -59,7 +59,7 @@ export function Header() {
           {/* Logo */}
           <div className="flex items-center space-x-3">
             <img 
-              src="/lovable-uploads/eefd4b80-ad21-48be-86d4-442a67f14076.png" 
+              src="/logo.png" 
               alt="Pure Atmos Logo" 
               className="h-10 w-auto"
             />

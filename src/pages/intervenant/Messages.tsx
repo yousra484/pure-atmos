@@ -2,14 +2,11 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { MessageSquare, Send, Users, Clock, CheckCircle2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 interface Message {
@@ -39,151 +36,170 @@ interface TeamMember {
   user_id: string;
 }
 
+// Mock data for UI simulation
+const MOCK_CURRENT_USER = {
+  id: "current-user-id",
+  nom: "Dupont",
+  prenom: "Jean",
+  type_compte: "intervention",
+  user_id: "auth-user-id"
+};
+
+const MOCK_TEAM_MEMBERS: TeamMember[] = [
+  {
+    id: "member-1",
+    nom: "Martin",
+    prenom: "Sophie",
+    type_compte: "admin",
+    user_id: "user-1"
+  },
+  {
+    id: "member-2",
+    nom: "Benali",
+    prenom: "Ahmed",
+    type_compte: "intervention",
+    user_id: "user-2"
+  },
+  {
+    id: "member-3",
+    nom: "Dubois",
+    prenom: "Marie",
+    type_compte: "client",
+    user_id: "user-3"
+  },
+  {
+    id: "member-4",
+    nom: "Koné",
+    prenom: "Ibrahim",
+    type_compte: "intervention",
+    user_id: "user-4"
+  }
+];
+
+const INITIAL_MOCK_MESSAGES: Message[] = [
+  {
+    id: "msg-1",
+    expediteur_id: "member-1",
+    destinataire_id: "current-user-id",
+    contenu: "Bonjour Jean, pouvez-vous me faire un rapport sur la mission de Tunis ?",
+    lu: false,
+    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    expediteur: {
+      nom: "Martin",
+      prenom: "Sophie",
+      type_compte: "admin"
+    }
+  },
+  {
+    id: "msg-2",
+    expediteur_id: "current-user-id",
+    destinataire_id: "member-1",
+    contenu: "Bien sûr Sophie, je vous envoie le rapport dans la journée.",
+    lu: true,
+    created_at: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: "msg-3",
+    expediteur_id: "member-2",
+    destinataire_id: "current-user-id",
+    contenu: "Salut Jean ! As-tu des nouvelles de la mission à Alger ?",
+    lu: false,
+    created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    expediteur: {
+      nom: "Benali",
+      prenom: "Ahmed",
+      type_compte: "intervention"
+    }
+  }
+];
+
 export default function Messages() {
-  const { user } = useAuth();
   const { toast } = useToast();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [messages, setMessages] = useState<Message[]>(INITIAL_MOCK_MESSAGES);
+  const [teamMembers] = useState<TeamMember[]>(MOCK_TEAM_MEMBERS);
   const [selectedRecipient, setSelectedRecipient] = useState<TeamMember | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [currentProfile, setCurrentProfile] = useState<TeamMember | null>(null);
+  const [currentProfile] = useState<TeamMember>(MOCK_CURRENT_USER);
 
   useEffect(() => {
-    if (user) {
-      fetchData();
-      // Set up real-time subscription for new messages
-      const subscription = supabase
-        .channel('messages')
-        .on('postgres_changes', 
-          { event: 'INSERT', schema: 'public', table: 'messages' },
-          (payload) => {
-            fetchMessages();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        subscription.unsubscribe();
-      };
-    }
-  }, [user]);
-
-  const fetchData = async () => {
-    try {
-      if (!user?.id) return;
-
-      // Get current user profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) return;
-      setCurrentProfile(profile);
-
-      // Fetch team members (all profiles except current user)
-      const { data: teamData, error: teamError } = await supabase
-        .from('profiles')
-        .select('*')
-        .neq('user_id', user.id)
-        .order('nom');
-
-      if (teamError) throw teamError;
-      setTeamMembers(teamData || []);
-
-      // Fetch messages
-      await fetchMessages();
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les données.",
-        variant: "destructive",
-      });
-    } finally {
+    // Simulate loading time
+    const timer = setTimeout(() => {
       setLoading(false);
-    }
-  };
+    }, 1000);
 
-  const fetchMessages = async () => {
-    try {
-      if (!user?.id) return;
+    return () => clearTimeout(timer);
+  }, []);
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
 
-      if (!profile) return;
-
-      // Fetch messages where user is sender or recipient
-      const { data: messagesData, error } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          expediteur:expediteur_id(nom, prenom, type_compte),
-          destinataire:destinataire_id(nom, prenom, type_compte)
-        `)
-        .or(`expediteur_id.eq.${profile.id},destinataire_id.eq.${profile.id}`)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setMessages(messagesData || []);
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    }
-  };
-
-  const sendMessage = async () => {
+  const sendMessage = () => {
     if (!selectedRecipient || !newMessage.trim() || !currentProfile) return;
 
     setSending(true);
-    try {
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          expediteur_id: currentProfile.id,
-          destinataire_id: selectedRecipient.id,
-          contenu: newMessage.trim(),
-          lu: false,
-        });
+    
+    // Simulate sending delay
+    setTimeout(() => {
+      const newMsg: Message = {
+        id: `msg-${Date.now()}`,
+        expediteur_id: currentProfile.id,
+        destinataire_id: selectedRecipient.id,
+        contenu: newMessage.trim(),
+        lu: false,
+        created_at: new Date().toISOString(),
+        expediteur: {
+          nom: currentProfile.nom,
+          prenom: currentProfile.prenom,
+          type_compte: currentProfile.type_compte
+        }
+      };
 
-      if (error) throw error;
-
+      setMessages(prev => [newMsg, ...prev]);
+      
       toast({
         title: "Message envoyé",
         description: `Message envoyé à ${selectedRecipient.prenom} ${selectedRecipient.nom}`,
       });
 
       setNewMessage('');
-      fetchMessages();
-    } catch (error) {
-      console.error('Error sending message:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible d'envoyer le message.",
-        variant: "destructive",
-      });
-    } finally {
       setSending(false);
-    }
+
+      // Simulate auto-reply after 2-5 seconds
+      const replyDelay = Math.random() * 3000 + 2000;
+      setTimeout(() => {
+        const replies = [
+          "Merci pour votre message, je vais regarder ça.",
+          "C'est noté, je vous tiens au courant.",
+          "Parfait, merci pour l'information.",
+          "Je m'en occupe dès que possible.",
+          "Reçu, je vous recontacte bientôt."
+        ];
+        
+        const autoReply: Message = {
+          id: `msg-${Date.now()}-reply`,
+          expediteur_id: selectedRecipient.id,
+          destinataire_id: currentProfile.id,
+          contenu: replies[Math.floor(Math.random() * replies.length)],
+          lu: false,
+          created_at: new Date().toISOString(),
+          expediteur: {
+            nom: selectedRecipient.nom,
+            prenom: selectedRecipient.prenom,
+            type_compte: selectedRecipient.type_compte
+          }
+        };
+        
+        setMessages(prev => [autoReply, ...prev]);
+      }, replyDelay);
+    }, 500);
   };
 
-  const markAsRead = async (messageId: string) => {
-    try {
-      await supabase
-        .from('messages')
-        .update({ lu: true })
-        .eq('id', messageId);
-      
-      fetchMessages();
-    } catch (error) {
-      console.error('Error marking message as read:', error);
-    }
+  const markAsRead = (messageId: string) => {
+    setMessages(prev => 
+      prev.map(msg => 
+        msg.id === messageId ? { ...msg, lu: true } : msg
+      )
+    );
   };
 
   const getConversationMessages = (recipientId: string) => {

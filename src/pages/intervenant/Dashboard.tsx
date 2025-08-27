@@ -30,10 +30,25 @@ import {
   Users,
   Calendar,
   Briefcase,
+  User,
+  HelpCircle,
+  Mail,
+  Phone,
+  Lock,
+  Edit,
+  ChevronLeft,
+  ChevronRight,
+  Settings,
+  Send,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface DemandeEtude {
   id: string;
@@ -103,6 +118,143 @@ export default function IntervenantDashboard() {
     zone_intervention?: string;
   } | null>(null);
 
+  const [planningModalOpen, setPlanningModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  const [profileData, setProfileData] = useState({
+    nom: "Dupont",
+    prenom: "Jean",
+    email: "jean.dupont@pureatmos.com",
+    telephone: "+33 1 23 45 67 89",
+    specialite: "Analyse de la qualité de l'air",
+    experience: "5 ans",
+  });
+  const [newEmail, setNewEmail] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [helpSubject, setHelpSubject] = useState("");
+  const [helpMessage, setHelpMessage] = useState("");
+  const [helpCategory, setHelpCategory] = useState("general");
+
+  const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
+
+  const mockMissions = [
+    {
+      id: 1,
+      title: "Analyse pollution industrielle - Tunis",
+      date: new Date(2025, 0, 28),
+      time: "09:00",
+      duration: "4h",
+      status: "en_cours",
+      location: "Zone industrielle, Tunis",
+    },
+    {
+      id: 2,
+      title: "Mesure qualité air - Alger",
+      date: new Date(2025, 0, 30),
+      time: "14:00",
+      duration: "6h",
+      status: "acceptée",
+      location: "Centre-ville, Alger",
+    },
+    {
+      id: 3,
+      title: "Rapport environnemental - Casablanca",
+      date: new Date(2025, 1, 2),
+      time: "10:00",
+      duration: "3h",
+      status: "acceptée",
+      location: "Port de Casablanca",
+    },
+  ];
+
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const getMissionForDate = (date: Date) => {
+    return mockMissions.find((mission) =>
+      mission.date.toDateString() === date.toDateString()
+    );
+  };
+
+  const handleProfileUpdate = () => {
+    toast({
+      title: "Profil mis à jour",
+      description: "Vos informations ont été sauvegardées avec succès.",
+    });
+  };
+
+  const handleEmailChange = () => {
+    if (!newEmail) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez saisir une nouvelle adresse email.",
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: "Email mis à jour",
+      description: "Votre adresse email a été modifiée avec succès.",
+    });
+    setProfileData((prev) => ({ ...prev, email: newEmail }));
+    setNewEmail("");
+  };
+
+  const handlePasswordChange = () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez remplir tous les champs.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Erreur",
+        description: "Les mots de passe ne correspondent pas.",
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: "Mot de passe mis à jour",
+      description: "Votre mot de passe a été modifié avec succès.",
+    });
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+  };
+
+  const handleHelpSubmit = () => {
+    if (!helpSubject || !helpMessage) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez remplir tous les champs.",
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: "Demande envoyée",
+      description: "Votre demande d'aide a été transmise à l'équipe support.",
+    });
+    setHelpSubject("");
+    setHelpMessage("");
+    setHelpCategory("general");
+    setHelpModalOpen(false);
+  };
+
   const fetchIntervenantData = useCallback(async () => {
     setLoading(true);
     try {
@@ -152,9 +304,7 @@ export default function IntervenantDashboard() {
           statut,
           client_id,
           created_at,
-          updated_at,
-          rapport_url,
-          rapport_uploaded_at
+          updated_at
         `
           )
           .order("created_at", { ascending: false });
@@ -163,8 +313,6 @@ export default function IntervenantDashboard() {
         console.error("Erreur récupération demandes:", toutesDemandesError);
         return;
       }
-
-     
 
       // Add missing columns with fallback values for current database
       const demandesAvecColonnesManquantes =
@@ -184,6 +332,9 @@ export default function IntervenantDashboard() {
           notes_terrain: null as string | null,
           latitude: null as number | null,
           longitude: null as number | null,
+          rapport_url: null as string | null,
+          rapport_uploaded_at: null as string | null,
+          pays: null as string | null,
         })) || [];
 
       // Separate studies by status
@@ -194,7 +345,11 @@ export default function IntervenantDashboard() {
 
       // Show accepted, in-progress, completed, and complete studies as missions
       const mesMissions = demandesAvecColonnesManquantes.filter(
-        (d) => d.statut === "acceptée" || d.statut === "en_cours" || d.statut === "terminée" || d.statut === "complete"
+        (d) =>
+          d.statut === "acceptée" ||
+          d.statut === "en_cours" ||
+          d.statut === "terminée" ||
+          d.statut === "complete"
       );
       const autresMissions: DemandeEtude[] = [];
 
@@ -219,20 +374,20 @@ export default function IntervenantDashboard() {
 
       // Calculate statistics based on available data
       // Since intervenant_id doesn't exist yet, we'll show general statistics
-      const totalStudies = toutesLesDemandesData?.length || 0;
+      const totalStudies = demandesAvecColonnesManquantes?.length || 0;
       const availableStudiesCount = demandesDisponibles.length;
       const acceptedStudies =
-        toutesLesDemandesData?.filter((d) => d.statut === "acceptée").length ||
-        0;
+        demandesAvecColonnesManquantes?.filter((d) => d.statut === "acceptée")
+          .length || 0;
       const activeStudies =
-        toutesLesDemandesData?.filter((d) => d.statut === "en_cours").length ||
-        0;
+        demandesAvecColonnesManquantes?.filter((d) => d.statut === "en_cours")
+          .length || 0;
       const completedStudies =
-        toutesLesDemandesData?.filter((d) => d.statut === "terminée").length ||
-        0;
+        demandesAvecColonnesManquantes?.filter((d) => d.statut === "terminée")
+          .length || 0;
       const completeStudies =
-        toutesLesDemandesData?.filter((d) => d.statut === "complete").length ||
-        0;
+        demandesAvecColonnesManquantes?.filter((d) => d.statut === "complete")
+          .length || 0;
 
       setStats({
         totalMissions: acceptedStudies + activeStudies + completedStudies + completeStudies,
@@ -766,63 +921,63 @@ export default function IntervenantDashboard() {
               {availableDemandes
                 .filter((d) => d.statut === "en_attente")
                 .map((demande) => (
-                <div
-                  key={demande.id}
-                  className="flex items-center justify-between p-6 border rounded-lg hover:shadow-md transition-shadow bg-gradient-to-r from-blue-50 to-green-50"
-                >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-3">
-                      <h4 className="font-semibold text-lg">
-                        {demande.type_etude || "Étude"} -{" "}
-                        {demande.nom_entreprise || "Sans nom"}
-                      </h4>
-                      <Badge variant="outline" className="bg-white">
-                        {demande.statut}
-                      </Badge>
+                  <div
+                    key={demande.id}
+                    className="flex items-center justify-between p-6 border rounded-lg hover:shadow-md transition-shadow bg-gradient-to-r from-blue-50 to-green-50"
+                  >
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-3">
+                        <h4 className="font-semibold text-lg">
+                          {demande.type_etude || "Étude"} -{" "}
+                          {demande.nom_entreprise || "Sans nom"}
+                        </h4>
+                        <Badge variant="outline" className="bg-white">
+                          {demande.statut}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center">
+                          <MapPin className="w-4 h-4 mr-1" />
+                          {demande.zone_geographique || "Lieu non spécifié"}
+                        </div>
+                        <div className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          Créée le{" "}
+                          {new Date(demande.created_at).toLocaleDateString(
+                            "fr-FR"
+                          )}
+                        </div>
+                      </div>
+
+                      {demande.description_projet && (
+                        <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                          {demande.description_projet}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        {demande.zone_geographique || "Lieu non spécifié"}
-                      </div>
-                      <div className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        Créée le{" "}
-                        {new Date(demande.created_at).toLocaleDateString(
-                          "fr-FR"
-                        )}
-                      </div>
+                    <div className="flex items-center space-x-3 ml-6">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewDetails(demande)}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Détails
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAcceptStudy(demande.id)}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <CheckSquare className="w-4 h-4 mr-1" />
+                        Accepter
+                      </Button>
                     </div>
-
-                    {demande.description_projet && (
-                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">
-                        {demande.description_projet}
-                      </p>
-                    )}
                   </div>
-
-                  <div className="flex items-center space-x-3 ml-6">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewDetails(demande)}
-                      className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Détails
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => handleAcceptStudy(demande.id)}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <CheckSquare className="w-4 h-4 mr-1" />
-                      Accepter
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                ))}
 
               {availableDemandes.filter((d) => d.statut === "en_attente").length > 5 && (
                 <div className="text-center pt-4">
@@ -908,7 +1063,7 @@ export default function IntervenantDashboard() {
 
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navigate("/intervenant/calendar")}
+          onClick={() => setPlanningModalOpen(true)}
         >
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -931,11 +1086,11 @@ export default function IntervenantDashboard() {
 
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navigate("/intervenant/profile")}
+          onClick={() => setProfileModalOpen(true)}
         >
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Users className="w-5 h-5 mr-2 text-indigo-500" />
+              <User className="w-5 h-5 mr-2 text-purple-500" />
               Profil
             </CardTitle>
             <CardDescription>Gérer votre profil intervenant</CardDescription>
@@ -949,11 +1104,11 @@ export default function IntervenantDashboard() {
 
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => window.open("/help", "_blank")}
+          onClick={() => setHelpModalOpen(true)}
         >
           <CardHeader>
             <CardTitle className="flex items-center">
-              <AlertTriangle className="w-5 h-5 mr-2 text-yellow-500" />
+              <HelpCircle className="w-5 h-5 mr-2 text-orange-500" />
               Aide & Support
             </CardTitle>
             <CardDescription>Documentation et assistance</CardDescription>
@@ -1204,6 +1359,392 @@ export default function IntervenantDashboard() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Planning Modal */}
+      <Dialog open={planningModalOpen} onOpenChange={setPlanningModalOpen}>
+        <DialogContent className="w-[95vw] max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-xl">
+              <Calendar className="w-6 h-6 mr-2 text-green-500" />
+              Planning des Missions
+            </DialogTitle>
+            <DialogDescription>
+              Consultez votre calendrier et la timeline de vos missions
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 mt-4">
+            {/* Calendar Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <h3 className="text-xl font-semibold">
+                  {currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                </h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentDate(new Date())}
+              >
+                Aujourd'hui
+              </Button>
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+              {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map(day => (
+                <div key={day} className="p-2 text-center font-medium text-gray-500 text-sm">
+                  {day}
+                </div>
+              ))}
+              
+              {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
+                <div key={i} className="p-2"></div>
+              ))}
+              
+              {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
+                const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i + 1);
+                const mission = getMissionForDate(date);
+                const isToday = date.toDateString() === new Date().toDateString();
+                
+                return (
+                  <div
+                    key={i}
+                    className={`p-1 sm:p-2 min-h-[60px] sm:min-h-[80px] border rounded-lg ${
+                      isToday ? 'bg-blue-50 border-blue-200' : 'border-gray-200'
+                    } ${mission ? 'bg-green-50 border-green-200' : ''}`}
+                  >
+                    <div className={`text-sm font-medium ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
+                      {i + 1}
+                    </div>
+                    {mission && (
+                      <div className="mt-1">
+                        <div className={`text-xs p-0.5 sm:p-1 rounded text-white ${
+                          mission.status === 'en_cours' ? 'bg-blue-500' : 'bg-green-500'
+                        }`}>
+                          {mission.time}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1 truncate">
+                          {mission.title}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Timeline Section */}
+            <Separator />
+            <div>
+              <h3 className="text-lg font-semibold mb-4 flex items-center">
+                <Clock className="w-5 h-5 mr-2 text-blue-500" />
+                Timeline des Missions
+              </h3>
+              <div className="space-y-4">
+                {mockMissions.map((mission) => (
+                  <div key={mission.id} className="flex items-start space-x-4 p-4 border rounded-lg hover:shadow-md transition-shadow">
+                    <div className={`w-3 h-3 rounded-full mt-2 ${
+                      mission.status === 'en_cours' ? 'bg-blue-500' : 'bg-green-500'
+                    }`}></div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium">{mission.title}</h4>
+                        <Badge variant={mission.status === 'en_cours' ? 'default' : 'secondary'}>
+                          {mission.status === 'en_cours' ? 'En cours' : 'Acceptée'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                        <span className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          {mission.date.toLocaleDateString('fr-FR')}
+                        </span>
+                        <span className="flex items-center">
+                          <Clock className="w-4 h-4 mr-1" />
+                          {mission.time} ({mission.duration})
+                        </span>
+                        <span className="flex items-center">
+                          <MapPin className="w-4 h-4 mr-1" />
+                          {mission.location}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Profile Modal */}
+      <Dialog open={profileModalOpen} onOpenChange={setProfileModalOpen}>
+        <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-xl">
+              <User className="w-6 h-6 mr-2 text-purple-500" />
+              Gestion du Profil
+            </DialogTitle>
+            <DialogDescription>
+              Consultez et modifiez vos informations personnelles
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 mt-4">
+            {/* Profile Information */}
+            <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4 flex items-center">
+                <Settings className="w-5 h-5 mr-2" />
+                Informations Personnelles
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="nom">Nom</Label>
+                  <Input
+                    id="nom"
+                    value={profileData.nom}
+                    onChange={(e) => setProfileData(prev => ({ ...prev, nom: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="prenom">Prénom</Label>
+                  <Input
+                    id="prenom"
+                    value={profileData.prenom}
+                    onChange={(e) => setProfileData(prev => ({ ...prev, prenom: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="telephone">Téléphone</Label>
+                  <Input
+                    id="telephone"
+                    value={profileData.telephone}
+                    onChange={(e) => setProfileData(prev => ({ ...prev, telephone: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="specialite">Spécialité</Label>
+                  <Input
+                    id="specialite"
+                    value={profileData.specialite}
+                    onChange={(e) => setProfileData(prev => ({ ...prev, specialite: e.target.value }))}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="experience">Expérience</Label>
+                  <Input
+                    id="experience"
+                    value={profileData.experience}
+                    onChange={(e) => setProfileData(prev => ({ ...prev, experience: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <Button onClick={handleProfileUpdate} className="mt-4">
+                <Edit className="w-4 h-4 mr-2" />
+                Mettre à jour le profil
+              </Button>
+            </div>
+
+            {/* Email Change */}
+            <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4 flex items-center">
+                <Mail className="w-5 h-5 mr-2" />
+                Changer l'Email
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <Label>Email actuel</Label>
+                  <Input value={profileData.email} disabled className="bg-gray-100" />
+                </div>
+                <div>
+                  <Label htmlFor="newEmail">Nouvel email</Label>
+                  <Input
+                    id="newEmail"
+                    type="email"
+                    placeholder="nouveau@email.com"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                  />
+                </div>
+                <Button onClick={handleEmailChange} variant="outline">
+                  <Mail className="w-4 h-4 mr-2" />
+                  Changer l'email
+                </Button>
+              </div>
+            </div>
+
+            {/* Password Change */}
+            <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4 flex items-center">
+                <Lock className="w-5 h-5 mr-2" />
+                Changer le Mot de Passe
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="currentPassword">Mot de passe actuel</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="newPassword">Nouveau mot de passe</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+                <Button onClick={handlePasswordChange} variant="outline">
+                  <Lock className="w-4 h-4 mr-2" />
+                  Changer le mot de passe
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Help & Support Modal */}
+      <Dialog open={helpModalOpen} onOpenChange={setHelpModalOpen}>
+        <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-xl">
+              <HelpCircle className="w-6 h-6 mr-2 text-orange-500" />
+              Aide & Support
+            </DialogTitle>
+            <DialogDescription>
+              Contactez notre équipe support pour obtenir de l'aide
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 mt-4">
+                {/* Quick Help Options */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
+                    <div className="flex items-center space-x-3">
+                      <Phone className="w-8 h-8 text-green-500" />
+                      <div>
+                        <h4 className="font-medium">Support Téléphonique</h4>
+                        <p className="text-sm text-gray-600">+33 1 23 45 67 89</p>
+                        <p className="text-xs text-gray-500">Lun-Ven 9h-18h</p>
+                      </div>
+                    </div>
+                  </Card>
+                  
+                  <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
+                    <div className="flex items-center space-x-3">
+                      <Mail className="w-8 h-8 text-blue-500" />
+                      <div>
+                        <h4 className="font-medium">Email Support</h4>
+                        <p className="text-sm text-gray-600">support@pureatmos.com</p>
+                        <p className="text-xs text-gray-500">Réponse sous 24h</p>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Contact Form */}
+                <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-4">Envoyer une demande</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="helpCategory">Catégorie</Label>
+                      <select
+                        id="helpCategory"
+                        value={helpCategory}
+                        onChange={(e) => setHelpCategory(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md"
+                      >
+                        <option value="general">Question générale</option>
+                        <option value="technique">Problème technique</option>
+                        <option value="mission">Aide sur une mission</option>
+                        <option value="rapport">Problème de rapport</option>
+                        <option value="compte">Gestion du compte</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="helpSubject">Sujet</Label>
+                      <Input
+                        id="helpSubject"
+                        placeholder="Décrivez brièvement votre problème"
+                        value={helpSubject}
+                        onChange={(e) => setHelpSubject(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="helpMessage">Message</Label>
+                      <Textarea
+                        id="helpMessage"
+                        placeholder="Décrivez votre problème en détail..."
+                        rows={4}
+                        value={helpMessage}
+                        onChange={(e) => setHelpMessage(e.target.value)}
+                      />
+                    </div>
+                    
+                    <Button onClick={handleHelpSubmit} className="w-full">
+                      <Send className="w-4 h-4 mr-2" />
+                      Envoyer la demande
+                    </Button>
+                  </div>
+                </div>
+
+                {/* FAQ Section */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Questions Fréquentes</h3>
+                  <div className="space-y-2">
+                    <details className="border rounded p-3">
+                      <summary className="cursor-pointer font-medium">Comment accepter une nouvelle mission ?</summary>
+                      <p className="mt-2 text-sm text-gray-600">
+                        Rendez-vous dans la section "Études Disponibles" de votre dashboard et cliquez sur "Accepter" pour la mission souhaitée.
+                      </p>
+                    </details>
+                    <details className="border rounded p-3">
+                      <summary className="cursor-pointer font-medium">Comment télécharger un rapport ?</summary>
+                      <p className="mt-2 text-sm text-gray-600">
+                        Allez dans la section "Rapports" et cliquez sur "Voir le rapport PDF" pour les missions terminées.
+                      </p>
+                    </details>
+                    <details className="border rounded p-3">
+                      <summary className="cursor-pointer font-medium">Comment modifier mes informations personnelles ?</summary>
+                      <p className="mt-2 text-sm text-gray-600">
+                        Cliquez sur "Profil" dans le dashboard et modifiez vos informations dans la section correspondante.
+                      </p>
+                    </details>
+                  </div>
+                </div>
+              </div>
+         
         </DialogContent>
       </Dialog>
     </div>
