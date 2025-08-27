@@ -70,6 +70,8 @@ const Login = () => {
       // Redirect based on user role
       if (profile && profile.type_compte === "intervention") {
         navigate("/intervenant/dashboard");
+      } else if (profile && profile.type_compte === "admin") {
+        navigate("/admin/dashboard");
       } else {
         navigate("/client/dashboard");
       }
@@ -115,12 +117,15 @@ const Login = () => {
             onValueChange={setAccountType}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
               <TabsTrigger value="client" className="text-sm">
                 {t.clientAccount}
               </TabsTrigger>
               <TabsTrigger value="intervention" className="text-sm">
                 {t.interventionAccount}
+              </TabsTrigger>
+              <TabsTrigger value="admin" className="text-sm">
+                Admin
               </TabsTrigger>
             </TabsList>
 
@@ -180,6 +185,36 @@ const Login = () => {
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Connexion..." : t.loginAsIntervention}
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="admin" className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-email">{t.email}</Label>
+                  <Input
+                    id="admin-email"
+                    type="email"
+                    placeholder={t.authEmailPlaceholder}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-password">{t.password}</Label>
+                  <Input
+                    id="admin-password"
+                    type="password"
+                    placeholder={t.passwordPlaceholder}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Connexion..." : "Se connecter en tant qu'Admin"}
                 </Button>
               </form>
             </TabsContent>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Package, FileText, Clock, DollarSign, User, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Package, FileText, Clock, DollarSign, User, Calendar, Home, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -41,6 +43,7 @@ interface Invoice {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats>({
     totalOrders: 0,
     activeOrders: 0,
@@ -138,6 +141,7 @@ export default function Dashboard() {
       let activeOrdersCount = 0;
       let completedOrdersCount = 0;
       let pendingInvoicesCount = 0;
+      let totalInvoicesCount = 0; // Toutes les demandes sauf annulées
       
       typedDemandes.forEach(demande => {
         // Calcul du budget total
@@ -221,13 +225,18 @@ export default function Dashboard() {
         }
         
         // Comptage des statuts
-        const statut = demande.statut?.toLowerCase() || '';
-        if (statut === 'en_cours' || statut === 'en cours' || statut === 'accepté' || statut === 'accepte') {
+        const statut = demande.statut || '';
+        if (statut === 'acceptée') {
           activeOrdersCount++;
-        } else if (statut === 'terminé' || statut === 'termine' || statut === 'livré' || statut === 'livre') {
+        } else if (statut === 'terminée') {
           completedOrdersCount++;
-        } else if (statut === 'en_attente' || statut === 'en attente' || statut === 'nouveau') {
+        } else if (statut === 'en_attente') {
           pendingInvoicesCount++;
+        }
+        
+        // Compter toutes les demandes sauf celles annulées pour les factures
+        if (statut !== 'annulée') {
+          totalInvoicesCount++;
         }
       });
 
@@ -236,7 +245,7 @@ export default function Dashboard() {
         totalOrders: typedDemandes.length,
         activeOrders: activeOrdersCount,
         completedReports: completedOrdersCount,
-        pendingInvoices: pendingInvoicesCount,
+        pendingInvoices: totalInvoicesCount,
         totalAmount: Math.round(totalBudget * 100) / 100,
         totalDays: totalDays
       });
@@ -299,16 +308,28 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Tableau de bord</h1>
-        {userProfile && (
-          <p className="text-lg text-muted-foreground">
-            Bienvenue {userProfile.prenom} {userProfile.nom}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Tableau de bord</h1>
+          {userProfile && (
+            <p className="text-lg text-muted-foreground">
+              Bienvenue {userProfile.prenom} {userProfile.nom}
+            </p>
+          )}
+          <p className="text-muted-foreground">
+            Voici un aperçu de vos activités.
           </p>
-        )}
-        <p className="text-muted-foreground">
-          Voici un aperçu de vos activités.
-        </p>
+        </div>
+        <Button 
+          variant="outline" 
+          onClick={() => navigate('/')}
+          className="gap-2"
+        >
+          <Home className="h-4 w-4" />
+          Retour à l'accueil
+        </Button>
+                 
+        
       </div>
 
       {/* Stats Cards */}
