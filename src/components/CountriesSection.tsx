@@ -20,7 +20,7 @@ export function CountriesSection({ language, selectedCountry, onCountrySelect }:
       office: 'Université de Tlemcen, Abou Bekr Belkaid',
       department: 'Département de Biologie',
       phone: '+213 559 34 54 40',
-      email: 'pureatmos@gmail.com',
+      email: 'algerie@pureatmos.site',
       team: [
         { name: 'Dr. Amina Benali', role: 'Directrice Scientifique', avatar: '👩‍🔬' },
         { name: 'Mohamed Cherif', role: 'Ingénieur Terrain', avatar: '👨‍💼' },
@@ -36,7 +36,7 @@ export function CountriesSection({ language, selectedCountry, onCountrySelect }:
       office: 'Dar es Salaam Office',
       department: 'Environmental Research Center',
       phone: '+255 XX XXX XXXX',
-      email: 'tanzania@pureatmos.com',
+      email: 'tanzania@pureatmos.site',
       team: [
         { name: 'Dr. John Mwalimu', role: 'Country Director', avatar: '👨‍🔬' },
         { name: 'Grace Kilimo', role: 'Field Coordinator', avatar: '👩‍💼' },
@@ -52,7 +52,7 @@ export function CountriesSection({ language, selectedCountry, onCountrySelect }:
       office: 'Nairobi Research Hub',
       department: 'Air Quality Division',
       phone: '+254 XXX XXX XXX',
-      email: 'kenya@pureatmos.com',
+      email: 'kenya@pureatmos.site',
       team: [
         { name: 'Dr. Sarah Wanjiku', role: 'Regional Manager', avatar: '👩‍🔬' },
         { name: 'James Kiprotich', role: 'Data Analyst', avatar: '👨‍💻' },

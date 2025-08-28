@@ -52,7 +52,7 @@ export function Footer() {
               </div>
               <div className="flex items-center gap-3">
                 <Mail className="h-5 w-5 text-atmos-green" />
-                <span>pureatmos@gmail.com</span>
+                <span>contact@pureatmos.site</span>
               </div>
               <div className="flex items-start gap-3">
                 <MapPin className="h-5 w-5 text-atmos-green mt-1" />

@@ -48,6 +48,7 @@ const Contact = () => {
     setIsSubmitting(true);
 
     try {
+      // Sauvegarder dans la base de données
       const { error } = await supabase
         .from('contacts_experts')
         .insert([
@@ -59,6 +60,34 @@ const Contact = () => {
         ]);
 
       if (error) throw error;
+
+      // Envoyer l'email via le serveur dans le dossier server/
+      try {
+        const emailResponse = await fetch('http://localhost:3001/api/contact', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            nom: formData.nom,
+            email: formData.email,
+            entreprise: formData.entreprise,
+            telephone: formData.telephone,
+            sujet: formData.sujet,
+            message: formData.message
+          })
+        });
+
+        const emailResult = await emailResponse.json();
+        
+        if (emailResult.success) {
+          console.log('Email envoyé avec succès:', emailResult.messageId);
+        } else {
+          console.warn('Erreur envoi email:', emailResult.message);
+        }
+      } catch (emailError) {
+        console.warn('Serveur email non disponible. Message sauvegardé en base de données uniquement.');
+      }
 
       toast({
         title: "Message envoyé avec succès",

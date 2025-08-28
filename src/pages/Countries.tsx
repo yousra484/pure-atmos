@@ -30,7 +30,7 @@ export default function Countries() {
       flag: '🇩🇿',
       office: t.algeriaOffice,
       phone: '+213 559 34 54 40',
-      email: 'pureatmos@gmail.com',
+      email: 'algerie@pureatmos.site',
       address: t.algeriaAddress,
       activities: [
         t.airQualityMonitoring,
@@ -80,7 +80,7 @@ export default function Countries() {
       flag: '🇹🇿',
       office: t.tanzaniaOffice,
       phone: '+255 700 000 000',
-      email: 'tanzania@pureatmos.com',
+      email: 'tanzanie@pureatmos.site',
       address: t.tanzaniaAddress,
       activities: [
         t.coastalPollutionStudies,
