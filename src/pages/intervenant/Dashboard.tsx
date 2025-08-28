@@ -830,7 +830,7 @@ export default function IntervenantDashboard() {
                             size="sm"
                             variant="outline"
                             onClick={() =>
-                              navigate(`/intervenant/reports/${mission.id}`)
+                              navigate("/intervenant/reports")
                             }
                             className="text-blue-600 border-blue-200 hover:bg-blue-50"
                           >

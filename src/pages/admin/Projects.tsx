@@ -35,19 +35,28 @@ import { fr } from "date-fns/locale";
 
 interface DemandeEtude {
   id: string;
-  titre: string;
-  description: string;
+  type_etude: string;
+  description_projet: string;
   statut: string;
-  pays: string;
-  budget_estime: number;
-  delai_souhaite: string;
+  pays: string | null;
+  budget_estime: string | null;
+  delai_souhaite: string | null;
   created_at: string;
   client_id: string;
   intervenant_id: string | null;
-  profiles: {
-    nom_complet: string;
-    email: string;
-  };
+  nom_entreprise: string;
+  contact_nom: string;
+  contact_email: string;
+  contact_telephone: string | null;
+  secteur_activite: string;
+  zone_geographique: string;
+  updated_at: string;
+  date_acceptation: string | null;
+  date_debut_mission: string | null;
+  date_fin_mission: string | null;
+  notes_terrain: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 const Projects = () => {
@@ -72,19 +81,13 @@ const Projects = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from("demandes_etudes")
-        .select(`
-          *,
-          profiles!demandes_etudes_client_id_fkey (
-            nom_complet,
-            email
-          )
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      setDemandes(data || []);
-      setFilteredDemandes(data || []);
+      setDemandes(data as DemandeEtude[] || []);
+      setFilteredDemandes(data as DemandeEtude[] || []);
     } catch (error) {
       console.error("Error fetching demandes:", error);
       toast({
@@ -104,9 +107,10 @@ const Projects = () => {
     if (searchTerm) {
       filtered = filtered.filter(
         (d) =>
-          d.titre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          d.profiles?.nom_complet.toLowerCase().includes(searchTerm.toLowerCase())
+          d.type_etude.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          d.description_projet.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          d.nom_entreprise.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          d.contact_nom.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -209,8 +213,7 @@ const Projects = () => {
               <SelectContent>
                 <SelectItem value="all">Tous les statuts</SelectItem>
                 <SelectItem value="en_attente">En attente</SelectItem>
-                <SelectItem value="acceptée">Acceptée</SelectItem>
-                <SelectItem value="en_cours">En cours</SelectItem>
+                <SelectItem value="acceptée">En cours </SelectItem>
                 <SelectItem value="terminée">Terminée</SelectItem>
                 <SelectItem value="annulée">Annulée</SelectItem>
               </SelectContent>
@@ -224,9 +227,9 @@ const Projects = () => {
         {["algerie", "kenya", "tanzanie"].map((country) => {
           const countryDemandes = demandes.filter((d) => d.pays === country);
           const enAttente = countryDemandes.filter((d) => d.statut === "en_attente").length;
-          const enCours = countryDemandes.filter((d) => d.statut === "en_cours" || d.statut === "acceptée").length;
-          const terminees = countryDemandes.filter((d) => d.statut === "terminée" || d.statut === "complete").length;
-
+          const enCours = countryDemandes.filter((d) => d.statut === "acceptée" || d.statut === "acceptée").length;
+          const terminees = countryDemandes.filter((d) => d.statut === "complete" || d.statut === "complete").length;
+          const annulee = countryDemandes.filter((d) => d.statut === "annulée" || d.statut === "annulée").length;
           return (
             <Card key={country}>
               <CardHeader className="pb-3">
@@ -292,9 +295,9 @@ const Projects = () => {
                     <TableRow key={demande.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{demande.titre}</div>
+                          <div className="font-medium">{demande.type_etude}</div>
                           <div className="text-sm text-muted-foreground line-clamp-1">
-                            {demande.description}
+                            {demande.description_projet}
                           </div>
                         </div>
                       </TableCell>
@@ -302,9 +305,9 @@ const Projects = () => {
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
                           <div>
-                            <div className="text-sm">{demande.profiles?.nom_complet}</div>
+                            <div className="text-sm">{demande.contact_nom}</div>
                             <div className="text-xs text-muted-foreground">
-                              {demande.profiles?.email}
+                              {demande.contact_email}
                             </div>
                           </div>
                         </div>
@@ -319,7 +322,7 @@ const Projects = () => {
                       <TableCell>
                         {demande.budget_estime ? (
                           <span className="font-medium">
-                            {demande.budget_estime.toLocaleString()} €
+                            {demande.budget_estime} €
                           </span>
                         ) : (
                           <span className="text-muted-foreground">-</span>

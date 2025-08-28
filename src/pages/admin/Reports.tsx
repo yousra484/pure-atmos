@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -33,13 +32,7 @@ import {
   Filter,
   Eye,
   Download,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Upload,
-  Send,
   Calendar,
-  User,
   Globe,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,11 +71,10 @@ const Reports = () => {
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedCountry, setSelectedCountry] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  const [isValidationDialogOpen, setIsValidationDialogOpen] = useState(false);
-  const [validationComment, setValidationComment] = useState("");
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -91,69 +83,61 @@ const Reports = () => {
 
   useEffect(() => {
     filterReports();
-  }, [reports, searchTerm, selectedStatus, selectedType]);
+  }, [reports, searchTerm, selectedCountry, selectedType]);
 
   const fetchReports = async () => {
     try {
       setLoading(true);
       
-      // Simulate fetching reports data
-      // In production, this would fetch from the rapports table
-      const mockReports: Report[] = [
-        {
-          id: "1",
-          titre: "Analyse qualité air - Usine Alger Nord",
-          description: "Rapport complet d'analyse de la qualité de l'air",
-          statut: "en_attente",
-          type_rapport: "analyse",
-          demande_id: "d1",
-          client_id: "c1",
-          intervenant_id: "i1",
-          date_creation: new Date().toISOString(),
-          date_validation: null,
-          url_document: null,
-          commentaires: null,
-          demande: {
-            titre: "Étude pollution atmosphérique",
-            pays: "algerie",
-          },
-          client: {
-            nom_complet: "Ahmed Benali",
-            email: "ahmed.benali@example.com",
-          },
-          intervenant: {
-            nom_complet: "Dr. Sarah Mansouri",
-          },
-        },
-        {
-          id: "2",
-          titre: "Rapport échantillonnage - Nairobi Industrial",
-          description: "Résultats d'échantillonnage et analyses laboratoire",
-          statut: "valide",
-          type_rapport: "echantillonnage",
-          demande_id: "d2",
-          client_id: "c2",
-          intervenant_id: "i2",
-          date_creation: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          date_validation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          url_document: "/reports/sample.pdf",
-          commentaires: "Rapport validé et approuvé",
-          demande: {
-            titre: "Analyse émissions industrielles",
-            pays: "kenya",
-          },
-          client: {
-            nom_complet: "John Kamau",
-            email: "john.kamau@example.com",
-          },
-          intervenant: {
-            nom_complet: "Prof. James Ochieng",
-          },
-        },
-      ];
+      // Fetch real data from demandes_etudes table
+      const { data: demandesData } = await supabase
+        .from('demandes_etudes')
+        .select(`
+          id,
+          nom_entreprise,
+          type_etude,
+          statut,
+          created_at,
+          updated_at,
+          pays,
+          client_id,
+          intervenant_id,
+          rapport_url,
+          contact_nom,
+          contact_email
+        `)
+        .eq('statut', 'complete')
+        .order('updated_at', { ascending: false });
 
-      setReports(mockReports);
-      setFilteredReports(mockReports);
+      // Transform data to match Report interface
+      const transformedReports: Report[] = (demandesData || []).map(demande => ({
+        id: demande.id,
+        titre: `Rapport - ${demande.nom_entreprise}`,
+        description: `Étude ${demande.type_etude} - ${demande.nom_entreprise}`,
+        statut: "complete",
+        type_rapport: "analyse",
+        demande_id: demande.id,
+        client_id: demande.client_id,
+        intervenant_id: demande.intervenant_id || "",
+        date_creation: demande.created_at,
+        date_validation: demande.rapport_url ? demande.updated_at : null,
+        url_document: demande.rapport_url,
+        commentaires: null,
+        demande: {
+          titre: `Étude ${demande.type_etude}`,
+          pays: demande.pays || "non_specifie",
+        },
+        client: {
+          nom_complet: demande.contact_nom || "Client non spécifié",
+          email: demande.contact_email || "email@non-specifie.com",
+        },
+        intervenant: {
+          nom_complet: "Intervenant",
+        },
+      }));
+
+      setReports(transformedReports);
+      setFilteredReports(transformedReports);
     } catch (error) {
       console.error("Error fetching reports:", error);
       toast({
@@ -178,8 +162,8 @@ const Reports = () => {
       );
     }
 
-    if (selectedStatus !== "all") {
-      filtered = filtered.filter((r) => r.statut === selectedStatus);
+    if (selectedCountry !== "all") {
+      filtered = filtered.filter((r) => r.demande.pays === selectedCountry);
     }
 
     if (selectedType !== "all") {
@@ -189,54 +173,12 @@ const Reports = () => {
     setFilteredReports(filtered);
   };
 
-  const handleValidateReport = async () => {
-    if (!selectedReport) return;
-
-    try {
-      // Simulate report validation
-      const updatedReports = reports.map((r) =>
-        r.id === selectedReport.id
-          ? {
-              ...r,
-              statut: "valide",
-              date_validation: new Date().toISOString(),
-              commentaires: validationComment,
-            }
-          : r
-      );
-      setReports(updatedReports);
-
-      toast({
-        title: "Rapport validé",
-        description: "Le rapport a été validé et publié avec succès.",
-      });
-
-      setIsValidationDialogOpen(false);
-      setValidationComment("");
-      setSelectedReport(null);
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de valider le rapport.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const getStatusBadge = (statut: string) => {
-    const statusConfig: { [key: string]: { variant: any; label: string; icon: any } } = {
-      en_attente: { variant: "secondary", label: "En attente", icon: Clock },
-      en_revision: { variant: "default", label: "En révision", icon: Eye },
-      valide: { variant: "success", label: "Validé", icon: CheckCircle },
-      rejete: { variant: "destructive", label: "Rejeté", icon: XCircle },
-    };
-
-    const config = statusConfig[statut] || { variant: "outline", label: statut, icon: FileText };
-    const Icon = config.icon;
     return (
-      <Badge variant={config.variant} className="gap-1">
-        <Icon className="h-3 w-3" />
-        {config.label}
+      <Badge variant="default" className="gap-1 bg-green-100 text-green-800 border-green-200">
+        <FileText className="h-3 w-3" />
+        Terminé
       </Badge>
     );
   };
@@ -261,6 +203,23 @@ const Reports = () => {
     return flags[code] || "🌍";
   };
 
+  const handleDownloadReport = (report: Report) => {
+    if (report.url_document) {
+      window.open(report.url_document, '_blank');
+    } else {
+      toast({
+        title: "Rapport non disponible",
+        description: "Le fichier du rapport n'est pas encore disponible.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleViewDetails = (report: Report) => {
+    setSelectedReport(report);
+    setIsDetailsDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -275,7 +234,7 @@ const Reports = () => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Gestion des rapports</h1>
         <p className="text-muted-foreground">
-          Validez et publiez les rapports d'études environnementales
+          Consultez les rapports d'études environnementales terminées
         </p>
       </div>
 
@@ -289,26 +248,8 @@ const Reports = () => {
             <div className="text-2xl font-bold">{reports.length}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">En attente</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {reports.filter((r) => r.statut === "en_attente").length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Validés</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {reports.filter((r) => r.statut === "valide").length}
-            </div>
-          </CardContent>
-        </Card>
+        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Cette semaine</CardTitle>
@@ -341,17 +282,16 @@ const Reports = () => {
                 className="pl-8"
               />
             </div>
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <Select value={selectedCountry} onValueChange={setSelectedCountry}>
               <SelectTrigger>
                 <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Tous les statuts" />
+                <SelectValue placeholder="Tous les pays" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="en_attente">En attente</SelectItem>
-                <SelectItem value="en_revision">En révision</SelectItem>
-                <SelectItem value="valide">Validé</SelectItem>
-                <SelectItem value="rejete">Rejeté</SelectItem>
+                <SelectItem value="all">Tous les pays</SelectItem>
+                <SelectItem value="algerie">Algérie</SelectItem>
+                <SelectItem value="kenya">Kenya</SelectItem>
+                <SelectItem value="tanzanie">Tanzanie</SelectItem>
               </SelectContent>
             </Select>
             <Select value={selectedType} onValueChange={setSelectedType}>
@@ -377,7 +317,7 @@ const Reports = () => {
         <CardHeader>
           <CardTitle>Liste des rapports ({filteredReports.length})</CardTitle>
           <CardDescription>
-            Cliquez sur un rapport pour le valider ou le télécharger
+            Cliquez sur un rapport pour le consulter ou le télécharger
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -442,23 +382,21 @@ const Reports = () => {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           {report.url_document && (
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleDownloadReport(report)}
+                              title="Télécharger le rapport"
+                            >
                               <Download className="h-4 w-4" />
                             </Button>
                           )}
-                          {report.statut === "en_attente" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedReport(report);
-                                setIsValidationDialogOpen(true);
-                              }}
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleViewDetails(report)}
+                            title="Voir les détails"
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                         </div>
@@ -472,49 +410,108 @@ const Reports = () => {
         </CardContent>
       </Card>
 
-      {/* Validation Dialog */}
-      <Dialog open={isValidationDialogOpen} onOpenChange={setIsValidationDialogOpen}>
-        <DialogContent>
+      {/* Details Dialog */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Valider le rapport</DialogTitle>
+            <DialogTitle>Détails du rapport</DialogTitle>
             <DialogDescription>
-              Validez et publiez ce rapport pour le client
+              Informations complètes sur le rapport d'étude
             </DialogDescription>
           </DialogHeader>
           {selectedReport && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Titre du rapport</label>
-                <p className="text-sm text-muted-foreground">{selectedReport.titre}</p>
+            <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Titre</label>
+                  <p className="text-sm font-medium">{selectedReport.titre}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Type</label>
+                  <p className="text-sm">{getTypeBadge(selectedReport.type_rapport)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Statut</label>
+                  <p className="text-sm">{getStatusBadge(selectedReport.statut)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Pays</label>
+                  <div className="flex items-center gap-1">
+                    <span>{getCountryFlag(selectedReport.demande.pays)}</span>
+                    <span className="text-sm">{selectedReport.demande.pays}</span>
+                  </div>
+                </div>
               </div>
+              
               <div>
-                <label className="text-sm font-medium">Client</label>
-                <p className="text-sm text-muted-foreground">
-                  {selectedReport.client.nom_complet}
-                </p>
+                <label className="text-sm font-medium text-muted-foreground">Description</label>
+                <p className="text-sm">{selectedReport.description}</p>
               </div>
-              <div>
-                <label className="text-sm font-medium">Commentaires de validation</label>
-                <Textarea
-                  placeholder="Ajoutez vos commentaires..."
-                  value={validationComment}
-                  onChange={(e) => setValidationComment(e.target.value)}
-                  rows={3}
-                />
+              
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Client</label>
+                  <p className="text-sm">{selectedReport.client.nom_complet}</p>
+                  <p className="text-xs text-muted-foreground">{selectedReport.client.email}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Intervenant</label>
+                  <p className="text-sm">{selectedReport.intervenant.nom_complet}</p>
+                </div>
               </div>
+              
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Date de création</label>
+                  <p className="text-sm">
+                    {format(new Date(selectedReport.date_creation), "dd MMMM yyyy 'à' HH:mm", { locale: fr })}
+                  </p>
+                </div>
+                {selectedReport.date_validation && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Date de validation</label>
+                    <p className="text-sm">
+                      {format(new Date(selectedReport.date_validation), "dd MMMM yyyy 'à' HH:mm", { locale: fr })}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {selectedReport.commentaires && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Commentaires</label>
+                  <p className="text-sm">{selectedReport.commentaires}</p>
+                </div>
+              )}
+              
+              {selectedReport.url_document && (
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium">Document disponible</p>
+                    <p className="text-xs text-muted-foreground">Cliquez pour télécharger le rapport</p>
+                  </div>
+                  <Button onClick={() => handleDownloadReport(selectedReport)}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Télécharger
+                  </Button>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsValidationDialogOpen(false)}>
-              Annuler
+            <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
+              Fermer
             </Button>
-            <Button onClick={handleValidateReport}>
-              <Send className="mr-2 h-4 w-4" />
-              Valider et publier
-            </Button>
+            {selectedReport?.url_document && (
+              <Button onClick={() => handleDownloadReport(selectedReport)}>
+                <Download className="mr-2 h-4 w-4" />
+                Télécharger
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };

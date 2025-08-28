@@ -77,24 +77,27 @@ export default function History() {
         .order('created_at', { ascending: false });
 
       // Transform demandes_etudes to match Order interface
-      const transformedOrders = ordersData?.map(demande => ({
-        id: demande.id,
-        titre: demande.nom_entreprise || `Analyse ${demande.type_etude}`,
-        statut: demande.statut || 'en_attente',
-        created_at: demande.created_at,
-        type_etude: demande.type_etude,
-        zone_geographique: demande.zone_geographique,
-        budget_estime: demande.budget_estime,
-        delai_souhaite: demande.delai_souhaite,
-        description_projet: demande.description_projet,
-        nom_entreprise: demande.nom_entreprise,
-        secteur_activite: demande.secteur_activite
-      })) || [];
+      const transformedOrders = ordersData?.map(demande => {
+        const order = {
+          id: demande.id,
+          titre: demande.nom_entreprise || `Analyse ${demande.type_etude}`,
+          statut: demande.statut || 'en_attente',
+          created_at: demande.created_at,
+          type_etude: demande.type_etude,
+          zone_geographique: demande.zone_geographique,
+          budget_estime: demande.budget_estime,
+          delai_souhaite: demande.delai_souhaite,
+          description_projet: demande.description_projet,
+          nom_entreprise: demande.nom_entreprise,
+          secteur_activite: demande.secteur_activite
+        };
+        return order;
+      }) || [];
 
       // For invoices, we'll create mock data based on completed orders
       // In a real scenario, invoices would be generated when orders are completed
       const invoicesWithOrders = transformedOrders
-        .filter(order => order.statut === 'termine')
+        .filter(order => order.statut === 'terminée')
         .map(order => ({
           id: `inv_${order.id}`,
           demande_etude_id: order.id,
@@ -183,8 +186,8 @@ export default function History() {
       const statusMap = {
         'en_attente': { label: 'En attente', variant: 'secondary' as const },
         'en_cours': { label: 'En cours', variant: 'default' as const },
-        'terminée': { label: 'Terminé', variant: 'default' as const },
-        'annulée': { label: 'Annulé', variant: 'destructive' as const },
+        'complete': { label: 'complete', variant: 'default' as const },
+        'annulée': { label: 'Annulée', variant: 'destructive' as const },
       };
       return statusMap[status as keyof typeof statusMap] || { 
         label: status, 
@@ -375,9 +378,9 @@ export default function History() {
               <SelectContent>
                 <SelectItem value="all">Tous les statuts</SelectItem>
                 <SelectItem value="en_attente">En attente</SelectItem>
-                <SelectItem value="acceptée">En cours</SelectItem>
-                <SelectItem value="terminée">Terminé</SelectItem>
-                <SelectItem value="annulée">Annulé</SelectItem>
+                <SelectItem value="en_cours">En cours</SelectItem>
+                <SelectItem value="complete">Terminée</SelectItem>
+                <SelectItem value="annulée">Annulée</SelectItem>
               </SelectContent>
             </Select>
           </div>

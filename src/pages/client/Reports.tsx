@@ -10,13 +10,12 @@ import { useAuth } from "@/hooks/useAuth";
 
 interface Report {
   id: string;
-  demande_etude_id: string;
-  langue: string;
-  fichier_url: string;
-  date_publication: string;
-  commande?: {
-    titre: string;
-  };
+  nom_entreprise: string;
+  type_etude: string;
+  zone_geographique: string;
+  rapport_url: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function Reports() {
@@ -24,17 +23,12 @@ export default function Reports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
-  const [languageFilter, setLanguageFilter] = useState<string>("all");
 
   useEffect(() => {
     if (user) {
       fetchReports();
     }
   }, [user]);
-
-  useEffect(() => {
-    filterReports();
-  }, [reports, languageFilter]);
 
   const fetchReports = async () => {
     try {
@@ -47,36 +41,17 @@ export default function Reports() {
 
       if (!profile) return;
 
-      // Fetch user's orders
-      const { data: orders } = await supabase
-        .from('demandes_etudes')
-        .select('id, nom_entreprise')
-        .eq('client_id', profile.id);
-
-      if (!orders || orders.length === 0) {
-        setReports([]);
-        return;
-      }
-
-      // Fetch reports for these orders
+      // Fetch user's completed studies with reports
       const { data: reportsData } = await supabase
-        .from('rapports')
-        .select('*')
-        .in('demande_etude_id', orders.map(o => o.id))
-        .order('date_publication', { ascending: false });
+        .from('demandes_etudes')
+        .select('id, nom_entreprise, type_etude, zone_geographique, rapport_url, created_at, updated_at')
+        .eq('client_id', profile.id)
+        .eq('statut', 'complete')
+        .not('rapport_url', 'is', null)
+        .order('updated_at', { ascending: false });
 
-      // Combine reports with order titles
-      const reportsWithOrders = reportsData?.map(report => {
-        const matchingOrder = orders.find(o => o.id === report.demande_etude_id);
-        return {
-          ...report,
-          commande: matchingOrder ? {
-            titre: matchingOrder.nom_entreprise || 'Sans titre'
-          } : undefined
-        };
-      }) || [];
-
-      setReports(reportsWithOrders);
+      setReports(reportsData || []);
+      setFilteredReports(reportsData || []);
     } catch (error) {
       console.error('Error fetching reports:', error);
     } finally {
@@ -84,39 +59,15 @@ export default function Reports() {
     }
   };
 
-  const filterReports = () => {
-    if (languageFilter === "all") {
-      setFilteredReports(reports);
-    } else {
-      setFilteredReports(reports.filter(report => report.langue === languageFilter));
-    }
-  };
 
-  const getLanguageBadge = (language: string) => {
-    const languageMap = {
-      'fr': { label: 'Français', variant: 'default' as const },
-      'en': { label: 'English', variant: 'secondary' as const },
-      'ar': { label: 'العربية', variant: 'outline' as const },
-      'es': { label: 'Español', variant: 'secondary' as const },
-    };
-    return languageMap[language as keyof typeof languageMap] || { 
-      label: language, 
-      variant: 'secondary' as const 
-    };
-  };
 
   const handleDownload = async (report: Report) => {
-    if (report.fichier_url) {
-      // In a real implementation, this would download from Supabase Storage
-      // For now, we'll just show an alert
-      alert(`Téléchargement du rapport: ${report.commande?.titre} (${report.langue})`);
+    if (report.rapport_url) {
+      // Open the report URL in a new tab
+      window.open(report.rapport_url, '_blank');
     }
   };
 
-  const getUniqueLanguages = () => {
-    const languages = [...new Set(reports.map(r => r.langue))];
-    return languages.filter(Boolean);
-  };
 
   if (loading) {
     return (
@@ -147,29 +98,10 @@ export default function Reports() {
         <div>
           <h1 className="text-3xl font-bold">Mes Rapports</h1>
           <p className="text-muted-foreground">
-            Téléchargez vos rapports en différentes langues
+            Téléchargez vos rapports d'analyses environnementales terminées
           </p>
         </div>
         
-        <div className="flex items-center space-x-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={languageFilter} onValueChange={setLanguageFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Filtrer par langue" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes langues</SelectItem>
-              {getUniqueLanguages().map((lang) => {
-                const badge = getLanguageBadge(lang);
-                return (
-                  <SelectItem key={lang} value={lang}>
-                    {badge.label}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       <Card>
@@ -187,45 +119,42 @@ export default function Reports() {
             <div className="text-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">
-                {reports.length === 0 
-                  ? "Aucun rapport disponible pour le moment"
-                  : "Aucun rapport trouvé pour ce filtre"
-                }
+                Aucun rapport disponible pour le moment
               </p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Commande</TableHead>
-                  <TableHead>Langue</TableHead>
-                  <TableHead>Date de publication</TableHead>
+                  <TableHead>Entreprise</TableHead>
+                  <TableHead>Type d'Étude</TableHead>
+                  <TableHead>Zone Géographique</TableHead>
+                  <TableHead>Date de Mise à Jour</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredReports.map((report) => {
-                  const languageBadge = getLanguageBadge(report.langue);
-                  
                   return (
                     <TableRow key={report.id}>
                       <TableCell className="font-medium">
-                        {report.commande?.titre || 'Commande supprimée'}
+                        {report.nom_entreprise}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={languageBadge.variant}>
-                          {languageBadge.label}
-                        </Badge>
+                        {report.type_etude}
                       </TableCell>
                       <TableCell>
-                        {new Date(report.date_publication).toLocaleDateString('fr-FR')}
+                        {report.zone_geographique}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(report.updated_at).toLocaleDateString('fr-FR')}
                       </TableCell>
                       <TableCell>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleDownload(report)}
-                          disabled={!report.fichier_url}
+                          disabled={!report.rapport_url}
                         >
                           <Download className="h-4 w-4 mr-1" />
                           Télécharger
@@ -240,37 +169,6 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      {/* Languages Summary */}
-      {reports.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Langues Disponibles</CardTitle>
-            <CardDescription>
-              Résumé des rapports par langue
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {getUniqueLanguages().map((lang) => {
-                const badge = getLanguageBadge(lang);
-                const count = reports.filter(r => r.langue === lang).length;
-                
-                return (
-                  <div key={lang} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="space-y-1">
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
-                      <p className="text-sm text-muted-foreground">
-                        {count} rapport(s)
-                      </p>
-                    </div>
-                    <FileText className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

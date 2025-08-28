@@ -48,14 +48,18 @@ import { fr } from "date-fns/locale";
 
 interface Profile {
   id: string;
-  nom_complet: string;
+  nom: string;
+  prenom: string;
   email: string;
-  telephone: string;
+  telephone: string | null;
   type_compte: string;
-  pays: string;
-  ville: string;
-  entreprise: string;
-  created_at: string;
+  pays: string | null;
+  entreprise: string | null;
+  specialisation: string | null;
+  experience: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+  user_id: string;
   is_active: boolean;
 }
 
@@ -95,8 +99,8 @@ const Accounts = () => {
         is_active: true, // Default to true, you can implement actual logic
       }));
 
-      setProfiles(profilesWithStatus);
-      setFilteredProfiles(profilesWithStatus);
+      setProfiles(profilesWithStatus as Profile[]);
+      setFilteredProfiles(profilesWithStatus as Profile[]);
     } catch (error) {
       console.error("Error fetching profiles:", error);
       toast({
@@ -116,7 +120,7 @@ const Accounts = () => {
     if (searchTerm) {
       filtered = filtered.filter(
         (p) =>
-          p.nom_complet.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          `${p.nom} ${p.prenom}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
           p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
           p.entreprise?.toLowerCase().includes(searchTerm.toLowerCase())
       );
@@ -145,7 +149,7 @@ const Accounts = () => {
       
       toast({
         title: "Statut modifié",
-        description: `Le compte de ${profile.nom_complet} a été ${
+        description: `Le compte de ${profile.nom} ${profile.prenom} a été ${
           profile.is_active ? "désactivé" : "activé"
         }.`,
       });
@@ -329,7 +333,7 @@ const Accounts = () => {
                     <TableRow key={profile.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{profile.nom_complet}</div>
+                          <div className="font-medium">{profile.nom} {profile.prenom}</div>
                           {profile.entreprise && (
                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
                               <Building className="h-3 w-3" />
@@ -340,13 +344,7 @@ const Accounts = () => {
                       </TableCell>
                       <TableCell>{getAccountTypeBadge(profile.type_compte)}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <span>{getCountryFlag(profile.pays)}</span>
-                          <span className="text-sm">
-                            {getCountryName(profile.pays)}
-                            {profile.ville && `, ${profile.ville}`}
-                          </span>
-                        </div>
+                       
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
@@ -372,7 +370,7 @@ const Accounts = () => {
                       </TableCell>
                       <TableCell>
                         {profile.is_active ? (
-                          <Badge variant="success" className="gap-1">
+                          <Badge variant="default" className="gap-1 bg-green-100 text-green-800">
                             <CheckCircle className="h-3 w-3" />
                             Actif
                           </Badge>
@@ -430,7 +428,8 @@ const Accounts = () => {
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Nom complet</label>
-                <Input value={selectedProfile.nom_complet} disabled />
+                <Input value={selectedProfile.nom} disabled />
+                <Input value={selectedProfile.prenom} disabled />
               </div>
               <div>
                 <label className="text-sm font-medium">Email</label>

@@ -72,21 +72,31 @@ const Statistics = () => {
       // Fetch real data from Supabase
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("type_compte, created_at, pays");
+        .select("id, type_compte, created_at, pays, nom, prenom");
 
       const { data: demandes } = await supabase
         .from("demandes_etudes")
-        .select("statut, pays, created_at, budget_estime");
+        .select("statut, pays, created_at, budget_estime, intervenant_id, rapport_url");
 
       // Calculate statistics
       const clients = profiles?.filter(p => p.type_compte === "client") || [];
       const intervenants = profiles?.filter(p => p.type_compte === "intervention") || [];
       const totalDemandes = demandes?.length || 0;
-      const demandesTerminees = demandes?.filter(d => d.statut === "terminée").length || 0;
-      const tauxCompletion = totalDemandes > 0 ? (demandesTerminees / totalDemandes) * 100 : 0;
+      const demandesCompletes = demandes?.filter(d => d.statut === "complete").length || 0;
+      const tauxCompletion = totalDemandes > 0 ? (demandesCompletes / totalDemandes) * 100 : 0;
 
-      // Calculate revenue (sum of budgets)
-      const revenueTotal = demandes?.reduce((sum, d) => sum + (d.budget_estime || 0), 0) || 0;
+      // Calculate revenue (sum of budgets from completed studies only)
+      const revenueTotal = demandes?.filter(d => d.statut === "complete").reduce((sum, d) => {
+        let budget = 0;
+        if (d.budget_estime) {
+          if (typeof d.budget_estime === 'string') {
+            budget = parseFloat(d.budget_estime.replace(/[^\d.-]/g, '')) || 0;
+          } else {
+            budget = Number(d.budget_estime) || 0;
+          }
+        }
+        return sum + budget;
+      }, 0) || 0;
 
       // Calculate growth (mock data for demonstration)
       const croissanceClients = 15.2; // In production, calculate from historical data
@@ -101,19 +111,14 @@ const Statistics = () => {
       // Group by status
       const statusData = generateStatusData(demandes || []);
 
-      // Top intervenants (mock data)
-      const topIntervenants = [
-        { name: "Dr. Sarah Mansouri", missions: 12, revenue: 45000 },
-        { name: "Prof. James Ochieng", missions: 10, revenue: 38000 },
-        { name: "Dr. Ahmed Khalil", missions: 8, revenue: 32000 },
-        { name: "Ing. Maria Santos", missions: 7, revenue: 28000 },
-      ];
+      // Top intervenants (real data)
+      const topIntervenants = generateTopIntervenants(demandes || [], profiles || []);
 
       setStats({
         totalClients: clients.length,
         totalIntervenants: intervenants.length,
         totalDemandes,
-        demandesTerminees,
+        demandesTerminees: demandesCompletes,
         revenueTotal,
         tauxCompletion,
         croissanceClients,
@@ -136,11 +141,29 @@ const Statistics = () => {
   };
 
   const generateMonthlyData = (demandes: any[]) => {
-    const months = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin"];
-    return months.map((month, index) => ({
-      month,
-      count: Math.floor(Math.random() * 20) + 5, // Mock data
-    }));
+    const now = new Date();
+    const months = [];
+    
+    // Generate last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthName = date.toLocaleDateString('fr-FR', { month: 'short' });
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      
+      // Count demandes for this month
+      const count = demandes.filter(d => {
+        const demandeDate = new Date(d.created_at);
+        return demandeDate.getFullYear() === year && demandeDate.getMonth() === month;
+      }).length;
+      
+      months.push({
+        month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+        count
+      });
+    }
+    
+    return months;
   };
 
   const generateCountryData = (demandes: any[]) => {
@@ -160,17 +183,66 @@ const Statistics = () => {
   const generateStatusData = (demandes: any[]) => {
     const statusConfig = [
       { status: "en_attente", label: "En attente", color: "#fbbf24" },
-      { status: "acceptée", label: "Acceptée", color: "#3b82f6" },
       { status: "en_cours", label: "En cours", color: "#8b5cf6" },
-      { status: "terminée", label: "Terminée", color: "#10b981" },
+      { status: "terminée", label: "Terminée", color: "#06b6d4" },
+      { status: "complete", label: "Complète", color: "#10b981" },
       { status: "annulée", label: "Annulée", color: "#ef4444" },
     ];
 
-    return statusConfig.map(config => ({
-      status: config.label,
-      count: demandes.filter(d => d.statut === config.status).length,
-      color: config.color,
-    }));
+    // Get actual counts from the data
+    const statusCounts = statusConfig.map(config => {
+      const count = demandes.filter(d => d.statut === config.status).length;
+      return {
+        status: config.label,
+        count,
+        color: config.color,
+      };
+    });
+
+    // Only return statuses that have at least one occurrence or show all with 0 counts
+    return statusCounts;
+  };
+
+  const generateTopIntervenants = (demandes: any[], profiles: any[]) => {
+    // Get all intervenants from profiles
+    const intervenants = profiles.filter(p => p.type_compte === "intervention");
+    
+    // Calculate stats for each intervenant
+    const intervenantStats = intervenants.map(intervenant => {
+      // Get completed missions for this intervenant with rapport_url
+      const completedMissions = demandes.filter(d => 
+        d.intervenant_id === intervenant.id && 
+        d.statut === "complete" && 
+        d.rapport_url
+      );
+      
+      // Calculate total revenue from completed missions
+      const revenue = completedMissions.reduce((sum, mission) => {
+        // Ensure budget_estime is properly converted to number
+        let budget = 0;
+        if (mission.budget_estime) {
+          if (typeof mission.budget_estime === 'string') {
+            budget = parseFloat(mission.budget_estime.replace(/[^\d.-]/g, '')) || 0;
+          } else {
+            budget = Number(mission.budget_estime) || 0;
+          }
+        }
+        console.log(`Mission budget for ${intervenant.prenom} ${intervenant.nom}: ${mission.budget_estime} -> ${budget}`);
+        return sum + budget;
+      }, 0);
+      
+      return {
+        name: `${intervenant.prenom || ''} ${intervenant.nom || ''}`.trim() || `Intervenant ${intervenant.id}`,
+        missions: completedMissions.length,
+        revenue: revenue
+      };
+    });
+    
+    // Sort by revenue and take top 4 (only show intervenants with completed missions and reports)
+    return intervenantStats
+      .filter(stat => stat.missions > 0) // Only show intervenants with completed missions with rapport_url
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 4);
   };
 
   const getCountryName = (code: string) => {
@@ -265,7 +337,7 @@ const Statistics = () => {
           <CardContent>
             <div className="text-2xl font-bold">{stats.tauxCompletion.toFixed(1)}%</div>
             <div className="text-sm text-muted-foreground">
-              {stats.demandesTerminees} terminées
+              {stats.demandesTerminees} complètes
             </div>
           </CardContent>
         </Card>
@@ -275,10 +347,10 @@ const Statistics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats.revenueTotal.toLocaleString()} €
+              {Math.round(stats.revenueTotal)} DZD
             </div>
             <div className="text-sm text-muted-foreground">
-              Budget estimé total
+              Revenus des études complètes
             </div>
           </CardContent>
         </Card>
@@ -405,7 +477,7 @@ const Statistics = () => {
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium">
-                      {intervenant.revenue.toLocaleString()} €
+                      {isNaN(intervenant.revenue) ? '0' : Math.round(intervenant.revenue)} DZD
                     </div>
                     <div className="text-xs text-muted-foreground">Revenus</div>
                   </div>
